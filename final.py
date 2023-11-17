@@ -6,7 +6,7 @@ import torch.nn as nn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 
-from explainers import do_WindowSHAP, do_comte
+from explanation_methods import do_WindowSHAP, do_comte
 from models import V1Classifier
 from train import train
 from util import heat_map

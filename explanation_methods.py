@@ -136,7 +136,8 @@ def do_comte(model, test_x, ts_to_explain):
     plt.show()
 
     import explainers
-    comte = explainers.OptimizedSearch(wrapped_model, ts_to_explain, labels, silent=False, threads=1)
+    from explainers import OptimizedSearch
+    comte = OptimizedSearch(wrapped_model, ts_to_explain, labels, silent=False, threads=1)
     comte.explain(test_timeseries.loc[['5c15428439747d4a8fa8f85d_60'], :, :], to_maximize=6, savefig=False)
 
 
