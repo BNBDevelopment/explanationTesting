@@ -1,5 +1,11 @@
+import numpy as np
+import pandas as pd
 import torch
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import MinMaxScaler
 
+import data_loading
+import utils
 from util import heat_map
 
 
@@ -7,12 +13,20 @@ class modelwrapper():
     def __init__(self, model):
         super().__init__()
         self.model = model
+        self.column_names = ["x1"]
+        self.classes_ = np.array([x for x in range(model.n_classes)])
 
     def predict(self, x):
-        x = torch.from_numpy(x).to(self.model.l1.bias.get_device()).to(torch.float32)
+        res = self.predict_proba(x)
+        pred = np.argmax(res, axis=-1)
+        return pred
+
+    def predict_proba(self, x):
+        if issubclass(x.__class__, pd.DataFrame):
+            x = x.to_numpy()
+        x = torch.from_numpy(x).to(self.model.fc1.bias.get_device()).to(torch.float32)
         res = self.model(x)
-        pred = torch.argmax(res, dim=-1)
-        return pred.detach().cpu().numpy()
+        return res.detach().cpu().numpy()
 
 
 #test_pd_x, test_pd_y, _, _ = gen_multivar_regression_casual_data(num_fake_samples=10, num_features=N_FEATS, causal_y_idxs=CIDS)
@@ -89,56 +103,91 @@ class modelwrapper():
 
 #################################################################################
 #CoMTE:
-def do_comte(model, test_x, ts_to_explain):
+def do_comte(model, train_x, train_y, test_x, test_y):
     # will not work, requires a deprecated package (MLRose) that depends on a deprecated scikit-learn version (sklearn, no longer available)
 
 
-    import logging
-    from pathlib import Path
-    import sys
-    import data_loading
-    import utils
     from sklearn.pipeline import Pipeline
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import MinMaxScaler
     from sklearn.metrics import f1_score
     from sklearn.metrics import confusion_matrix
     import seaborn as sns
     import matplotlib.pyplot as plt
-    from utils import TSFeatureGenerator
 
+    test_y = test_y.to_frame().astype(int)
+    num_idx = 1
+    #ts_to_explain.index.name = ["x"+str(i) for i in range(0, num_idx)]\
+    test_x.index.name = "node_id"
+    test_y.columns = ["label"]
 
-    timeseries, labels, test_timeseries, test_labels = data_loading.get_dataset('natops', binary=False);
-    extractor = TSFeatureGenerator(threads=1, trim=0)
+    names = ('node_id', 'timestamp')
+    mi_lbl = [[i for i in range(test_y.shape[0])], [0 for i in range(test_y.shape[0])]]
+    test_y.index = pd.MultiIndex.from_arrays(mi_lbl, names=names)
 
-    # pipeline = Pipeline([
-    #     ('assert1', utils.CheckFeatures()),
-    #     ('features', utils.TSFeatureGenerator(threads=1, trim=0)),
-    #     ('assert2', utils.CheckFeatures()),
-    #     ('scaler', MinMaxScaler(feature_range=(-1, 1))),
-    #     ('clf', RandomForestClassifier(n_estimators=100, class_weight='balanced'))
-    # ], verbose=True)
-    #pipeline.fit(timeseries, labels)
-    #preds = pipeline.predict(test_timeseries)
-
+    model.eval()
     wrapped_model = modelwrapper(model)
+    pipeline = Pipeline([
+        ('clf', wrapped_model)
+    ], verbose=True)
+
     preds = wrapped_model.predict(test_x.to_numpy())
 
-    print("F1 score:", f1_score(ts_to_explain, preds, average='weighted'))
-    for label, i in zip(ts_to_explain.unique(), f1_score(ts_to_explain, preds, average=None)):
+    print("F1 score:", f1_score(test_y, preds, average='weighted'))
+    for label, i in zip(np.unique(test_y), f1_score(test_y, preds, average=None)):
         print("\t", label, i)
 
-    label_list = list(ts_to_explain.unique())
-    cf = confusion_matrix(ts_to_explain, preds, labels=label_list).astype(float)
+
+    label_list = np.unique(test_y)
+    cf = confusion_matrix(test_y, preds, labels=label_list).astype(float)
     for i in range(len(cf)):
         cf[i] = [x / cf[i].sum() for x in cf[i]]
     sns.heatmap(cf, annot=True, xticklabels=label_list, yticklabels=label_list)
     plt.show()
 
-    import explainers
+
+
+
+
+    train_y = train_y.to_frame().astype(int)
+    train_x.index.name = "node_id"
+    train_y.columns = ["label"]
+    names = ('node_id', 'timestamp')
+    mi_lbl = [[i for i in range(train_y.shape[0])], [0 for i in range(train_y.shape[0])]]
+    train_y.index = pd.MultiIndex.from_arrays(mi_lbl, names=names)
+    train_x.columns = [i for i in range(train_x.shape[1])]
+    test_x.columns = [i for i in range(test_x.shape[1])]
+
     from explainers import OptimizedSearch
-    comte = OptimizedSearch(wrapped_model, ts_to_explain, labels, silent=False, threads=1)
-    comte.explain(test_timeseries.loc[['5c15428439747d4a8fa8f85d_60'], :, :], to_maximize=6, savefig=False)
+    comte = OptimizedSearch(pipeline, train_x, train_y, silent=False, threads=1)
+    single_sample = pd.DataFrame(test_x.iloc[0,:]).transpose()
+    single_sample_lbl = test_y.iloc[0, :].item()
+    single_sample_pred = wrapped_model.predict(single_sample).item()
+    new_desired_label = 1 - single_sample_pred
+    #single_sample.columns = [i for i in range(single_sample.shape[1])]
+
+    explanation = comte.explain(single_sample, to_maximize=new_desired_label, savefig=False)
+    print('###########')
+    print(explanation)
+    print('###########')
+
+
+    # from explainers import OptimizedSearch
+    # comte = OptimizedSearch(pipeline, test_x, test_y, silent=False, threads=1, num_distractors=2)
+    #
+    # true_select = 0 #if normal
+    # pred_select = 1 #but predicted abnormal
+    #
+    # indices_test = []
+    # for idx, (true, pred) in enumerate(zip(test_y.to_numpy(), preds)):
+    #     if true.item() == true_select and pred.item() == pred_select:
+    #         indices_test.append(idx)
+    #
+    # for ind in indices_test:
+    #     x_test = test_x.loc[[ind], :]
+    #     explanation = comte.explain(x_test,to_maximize=0,savefig=False)
+    #     print('###########')
+    #     print(explanation)
+    #     print('###########')
+    #     break
 
 
 

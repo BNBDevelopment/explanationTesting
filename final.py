@@ -61,10 +61,10 @@ model2_RndFrst = RandomForestClassifier(n_estimators=100)
 model = V1Classifier(n_feats=96, n_classes=2)
 
 
-model = train(model, train_pd_x, train_pd_y, n_epochs=2, lr=0.01, loss_fn=nn.CrossEntropyLoss())
+model = train(model, train_pd_x, train_pd_y, n_epochs=20, lr=0.01, loss_fn=nn.CrossEntropyLoss())
 
 ###################################### Explanations ######################################################
 
 #do_WindowSHAP(model, train_pd_x, test_pd_x)
 
-do_comte(model, test_pd_x, test_pd_y)
+do_comte(model, train_pd_x, train_pd_y, test_pd_x, test_pd_y)
