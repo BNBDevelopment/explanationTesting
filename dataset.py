@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import math
 import pickle
 
@@ -92,3 +95,63 @@ def gen_multivar_regression_casual_data(num_fake_samples=1000, window_size=1, wi
 
     print(f"pd_x: {pd_x}")
     return pd_x, pd_y, t_data_x, t_data_y
+
+def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_len=30, num_features=18, categorical_feats=[]):
+
+    val_file_name = "val_listfile.csv"
+    test_file_name = "test_listfile.csv"
+
+    train_file = pd.read_csv(base_path / filename)
+    #train_y = train_file["y_true"]
+    train_stay_ref = train_file["stay"]
+
+    total_data_records = 0
+    useable_records = 0
+
+    train_x = np.zeros((0, cutoff_seq_len, num_features-len(categorical_feats)))
+    train_y = np.zeros((0))
+
+    seq_lens = []
+
+    read_folder = datatype
+    if datatype == "val":
+        read_folder = "train"
+
+    for i, stay_ref in enumerate(train_stay_ref):
+        train_data = pd.read_csv(base_path / (read_folder+"/"+stay_ref))
+
+        total_data_records += 1
+
+        seq_lens.append(train_data.shape[0])
+        if train_data.shape[0] >= cutoff_seq_len:
+            useable_records += 1
+
+            #replace all NaN values with 0
+            train_data[train_data != train_data] = 0
+            #TODO: replace - drop categoricals, needed since previous user did not write data correctly (not consistent categortical values, poorly formatted, etc...)
+            train_data = train_data.drop(labels=categorical_feats, axis=1)
+
+            clean_data = np.expand_dims(train_data.to_numpy(), axis=0)[:, :cutoff_seq_len, :]
+            train_x = np.concatenate((train_x, clean_data), axis=0)
+
+            train_y = np.concatenate((train_y, np.expand_dims(train_file["y_true"].iloc[i], axis=0)), axis=0)
+
+
+    return train_x, train_y
+
+
+def load_file_data(datadir="./", mimic_data_path="./data/in-hospital-mortality/", max_seq_len=70, num_features=18,
+                   exclude_feats_list=None, data_type="train"):
+
+    if os.path.isfile(datadir + data_type+"_ihm_30_x.csv") and os.path.isfile(datadir + data_type+"_ihm_30_y.csv"):
+        train_x = load_data(datadir + data_type+"_ihm_30_x.csv")
+        train_y = load_data(datadir + data_type+"_ihm_30_y.csv")
+    else:
+        path = Path(mimic_data_path)
+
+        train_x, train_y = load_mimic_binary_classification(path, data_type+"_listfile.csv", data_type, cutoff_seq_len=max_seq_len,
+                                                            num_features=num_features, categorical_feats=exclude_feats_list)
+        save_data(train_x, datadir + data_type+"_ihm_30_x.csv")
+        save_data(train_y, datadir + data_type+"_ihm_30_y.csv")
+
+    return train_x, train_y

@@ -1,3 +1,10 @@
+import os.path
+import pickle
+from pathlib import Path
+
+import math
+
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -6,9 +13,16 @@ import torch.nn as nn
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression
 
+import dataset
+import gru_ode_bayes
+import torchmimic.models
+from TLSTM import TLSTM
 from explanation_methods import do_WindowSHAP, do_comte
-from models import V1Classifier
-from train import train
+from mimic3models.in_hospital_mortality import utils
+from mimic3models.preprocessing import Normalizer, Discretizer
+from models import V1Classifier, BasicLSTM, select_model
+from train import train#, bayes_train
+import tensorflow
 from util import heat_map
 
 N_FEATS = 1
@@ -58,13 +72,59 @@ model2_RndFrst = RandomForestClassifier(n_estimators=100)
 
 #model = LinearRegression()
 #model = RandomForestClassifier(n_estimators=100)
-model = V1Classifier(n_feats=96, n_classes=2)
+#model = V1Classifier(n_feats=96, n_classes=2)
 
 
-model = train(model, train_pd_x, train_pd_y, n_epochs=20, lr=0.01, loss_fn=nn.CrossEntropyLoss())
+#model = train(model, train_pd_x, train_pd_y, n_epochs=20, lr=0.01, loss_fn=nn.CrossEntropyLoss())
 
 ###################################### Explanations ######################################################
 
 #do_WindowSHAP(model, train_pd_x, test_pd_x)
 
-do_comte(model, train_pd_x, train_pd_y, test_pd_x, test_pd_y)
+#do_comte(model, train_pd_x, train_pd_y, test_pd_x, test_pd_y)
+
+
+
+
+
+
+def main():
+    cutoff_seq_len = 50
+    num_features = 18
+    excludes = ['Glascow coma scale eye opening','Glascow coma scale motor response','Glascow coma scale verbal response']
+
+    path = "./data/in-hospital-mortality/"
+
+    train_x, train_y = load_file_data(datadir="./data/my_mimic/", mimic_data_path=path, exclude_feats_list=excludes, data_type="train")
+
+    val_x, val_y = load_file_data(datadir="./data/my_mimic/", mimic_data_path=path, exclude_feats_list=excludes, data_type="val")
+
+    current_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    #model_type = "benchmark_lstm"
+    #model_type = ""
+    #model_type = "xgboost"
+    model_type = "benchmark_lstm"
+
+    wm = True
+    mt = 'lstm'
+
+    model = select_model(model_type)
+    model = train(model, basic_config, train_x, train_y, val_x, val_y)
+
+    #test_x, test_y = load_mimic_binary_classification(path, "test_listfile.csv", "test", cutoff_seq_len=cutoff_seq_len, num_features=num_features, categorical_feats=excludes)
+    test_x, test_y = load_file_data(datadir="./data/my_mimic/", mimic_data_path=path, exclude_feats_list=excludes,
+                                  data_type="test")
+
+    ft = ["Hours","Capillary refill rate","Diastolic blood pressure","Fraction inspired oxygen",
+          "Glascow coma scale total","Glucose","Heart Rate","Height","Mean blood pressure","Oxygen saturation",
+          "Respiratory rate","Systolic blood pressure","Temperature","Weight","pH"]
+
+
+    #model = torch.load("model_epoch15_aucroc0.6252150479891426.pt")
+    do_WindowSHAP(model, train_x, test_x, feature_names=ft, wrap_model=wm, model_type=mt)
+    #do_comte(model, train_x, train_y, test_x, test_y, test_id_to_explain=0)
+
+
+if __name__ == "__main__":
+    main()

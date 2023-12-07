@@ -1,20 +1,20 @@
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import MinMaxScaler
 
-import data_loading
-import utils
 from util import heat_map
 
 
 class modelwrapper():
-    def __init__(self, model):
+    def __init__(self, model, n_classes=None, model_flag=None):
         super().__init__()
         self.model = model
         self.column_names = ["x1"]
-        self.classes_ = np.array([x for x in range(model.n_classes)])
+        if n_classes is None:
+            self.classes_ = np.array([x for x in range(model.n_classes)])
+        else:
+            self.classes_ = n_classes
+        self.model_flag = model_flag
 
     def predict(self, x):
         res = self.predict_proba(x)
@@ -22,11 +22,26 @@ class modelwrapper():
         return pred
 
     def predict_proba(self, x):
-        if issubclass(x.__class__, pd.DataFrame):
-            x = x.to_numpy()
-        x = torch.from_numpy(x).to(self.model.fc1.bias.get_device()).to(torch.float32)
-        res = self.model(x)
-        return res.detach().cpu().numpy()
+        if self.model_flag == "brits":
+            res = self.model.predict({"X":x})
+            return res['imputation']
+        else:
+            if issubclass(x.__class__, pd.DataFrame):
+                x = x.to_numpy()
+            x = torch.from_numpy(x).to(self.model.fc.bias.get_device()).to(torch.float32)
+
+            if x.size(0) > 128:
+                print("NOTICE: Batching for explanation methods activated...")
+                x_arr = torch.split(x, x.size(0)//(x.size(0)//64), dim=0)
+                reses = []
+                for x in x_arr:
+                    res = self.model(x)
+                    reses.append(res.detach().cpu().numpy())
+                res = np.concatenate(reses, axis=0)
+            else:
+                res = self.model(x)
+                res = res.detach().cpu().numpy()
+            return res
 
 
 #test_pd_x, test_pd_y, _, _ = gen_multivar_regression_casual_data(num_fake_samples=10, num_features=N_FEATS, causal_y_idxs=CIDS)
@@ -103,7 +118,7 @@ class modelwrapper():
 
 #################################################################################
 #CoMTE:
-def do_comte(model, train_x, train_y, test_x, test_y):
+def do_comte(model, train_x, train_y, test_x, test_y, test_id_to_explain=0):
     # will not work, requires a deprecated package (MLRose) that depends on a deprecated scikit-learn version (sklearn, no longer available)
 
 
@@ -112,6 +127,9 @@ def do_comte(model, train_x, train_y, test_x, test_y):
     from sklearn.metrics import confusion_matrix
     import seaborn as sns
     import matplotlib.pyplot as plt
+
+    if issubclass(train_x.__class__, np.ndarray):
+        train_x = train_x.p
 
     test_y = test_y.to_frame().astype(int)
     num_idx = 1
@@ -158,8 +176,8 @@ def do_comte(model, train_x, train_y, test_x, test_y):
 
     from explainers import OptimizedSearch
     comte = OptimizedSearch(pipeline, train_x, train_y, silent=False, threads=1)
-    single_sample = pd.DataFrame(test_x.iloc[0,:]).transpose()
-    single_sample_lbl = test_y.iloc[0, :].item()
+    single_sample = pd.DataFrame(test_x.iloc[test_id_to_explain,:]).transpose()
+    single_sample_lbl = test_y.iloc[test_id_to_explain, :].item()
     single_sample_pred = wrapped_model.predict(single_sample).item()
     new_desired_label = 1 - single_sample_pred
     #single_sample.columns = [i for i in range(single_sample.shape[1])]
@@ -194,30 +212,47 @@ def do_comte(model, train_x, train_y, test_x, test_y):
 #################################################################################
 #WindowSHAP:
 
-def do_WindowSHAP(model, train_pd_x, test_pd_x):
+class brits_wrapper():
+    def __init__(self, model):
+        self.model = model
+    def predict(self, x):
+        res = self.model.predict(x)
+        return res['imputation']
+
+def do_WindowSHAP(model, train_pd_x, test_pd_x, window_len=10, feature_names = [], wrap_model=True, model_type='lstm'):
     import numpy as np
     from windowshap import  StationaryWindowSHAP
     import timeit
     import shap
 
-    train_x = train_pd_x.to_numpy()
-    test_x = test_pd_x.to_numpy()
+    if issubclass(train_pd_x.__class__, pd.DataFrame):
+        train_x = train_pd_x.to_numpy()
+        train_x = np.expand_dims(train_x, -1)
+    else:
+        train_x = train_pd_x
 
-    train_x = np.expand_dims(train_x, -1)
-    test_x = np.expand_dims(test_x, -1)
+    if issubclass(test_pd_x.__class__, pd.DataFrame):
+        test_x = test_pd_x.to_numpy()
+        test_x = np.expand_dims(test_x, -1)
+    else:
+        test_x = test_pd_x
+
+
+
 
     num_background = 50
     num_test = 28
     background_data, test_data = train_x[:num_background], test_x[num_test:num_test+2]
 
-
-    wrapped_model = modelwrapper(model)
+    if wrap_model:
+        wrapped_model = modelwrapper(model, n_classes=2, model_flag='brits')
+    else:
+        wrapped_model = brits_wrapper(model)
 
     tic = timeit.default_timer()
     ts_phi_1 = np.zeros((len(test_data),test_data.shape[1], test_data.shape[2]))
     for i in range(len(test_data)):
-        window_len = 16
-        gtw = StationaryWindowSHAP(wrapped_model, window_len, B_ts=background_data, test_ts=test_data[i:i+1], model_type='lstm')
+        gtw = StationaryWindowSHAP(wrapped_model, window_len, B_ts=background_data, test_ts=test_data[i:i+1], model_type=model_type)
 
         gtw.explainer = shap.KernelExplainer(gtw.wraper_predict, gtw.background_data)
         shap_values = gtw.explainer.shap_values(gtw.test_data)
@@ -225,9 +260,13 @@ def do_WindowSHAP(model, train_pd_x, test_pd_x):
 
         #stretch shapleys over windows
         #n_repeats = test_data.shape[1] // window_len
-        sv = np.repeat(shap_values.flatten(), window_len, axis=0)
 
-        heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i+1].flatten(), shap_values=sv, var_name='Observed', plot_type='bar')
+        #sv = np.repeat(shap_values.flatten(), window_len, axis=0)
+        sv=np.repeat(shap_values.flatten().reshape((-1, gtw.num_window)), window_len, axis=1)
+
+        for var_i, var_name in enumerate(feature_names):
+            #heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i+1].flatten(), shap_values=sv, var_name='Observed', plot_type='bar')
+            heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i + 1, :, var_i].flatten(), shap_values=sv[var_i].flatten(), var_name=var_name, plot_type='bar')
 
         print("finally working!!!")
 
