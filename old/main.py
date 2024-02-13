@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import TensorDataset
 
-from dataset import TimeseriesDataset
+from ex_dataset import TimeseriesDataset
 from model import LSTMClassification
 
 import timeshap

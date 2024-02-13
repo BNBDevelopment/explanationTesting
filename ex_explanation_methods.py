@@ -9,7 +9,7 @@ from TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
 from TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
 from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
 
-from timeshap.explainer import calc_local_report, local_event, local_pruning, local_feat, TimeShapKernel
+#from timeshap.explainer import calc_local_report, local_event, local_pruning, local_feat, TimeShapKernel
 from util import heat_map
 import numpy as np
 from windowshap import StationaryWindowSHAP
@@ -246,6 +246,20 @@ def do_GradCAM(model, configuration, train_x, test_x, test_y, feature_names, wra
     print("Finished gradcam")
     return exp
 
+def plot_original_overlap_counterfactual(test_item, explan_res, feature_names, test_idx):
+    figure, axis = plt.subplots(8, 2, figsize=(10, 80), layout='constrained')
+    lbls = [""] * 70
+    for j,_ in enumerate(lbls):
+        if j%5 == 0:
+            lbls[j] = str(j)
+    for i in range(15):
+        axis[i//2, i%2].plot(list(range(0, 70)), explan_res[0][:, :, i].flatten(), color='r', label='counterfactual')
+        axis[i//2, i%2].plot(list(range(0, 70)), test_item[:, :, i].flatten(), color='b', label='original')
+        axis[i//2, i%2].set_title(f"Feature {feature_names[i]}")
+        axis[i//2, i%2].set_xticks(list(range(0,70)),  labels=lbls)
+    figure.savefig(f"example_overlap_item_{test_idx}.png")
+
+
 def do_COMTE(model, configuration, train_x, test_x, test_y, feature_names, wrap_model, model_type, num_background, test_idx,
                num_test_samples):
     data = (test_x, test_y)
@@ -270,8 +284,16 @@ def do_COMTE(model, configuration, train_x, test_x, test_y, feature_names, wrap_
 
     explainer_method.plot(original=test_item, org_label=actual_model_label, exp=exp[0], exp_label=exp[1], figsize=(12.8, 9.6), save_fig=img_save_path + f"item_{test_idx}_result.png")
 
+    differences = exp[0] - test_item
+
+
+
+    plot_original_overlap_counterfactual(test_item, exp, feature_names, test_idx)
+
     print("Finished comte")
     return exp
+
+
 
 
 def do_NUNCF(model, configuration, train_x, test_x, test_y, feature_names, wrap_model, model_type, num_background, test_idx,
@@ -313,98 +335,98 @@ def do_NUNCF(model, configuration, train_x, test_x, test_y, feature_names, wrap_
 
 
 
-def do_TimeSHAP(model, config, train_pd_x, test_pd_x, window_len=10, feature_names = [], wrap_model=True, model_type='lstm', num_background=50, test_idx=28, num_test_samples=1):
-    if issubclass(train_pd_x.__class__, pd.DataFrame):
-        train_x = train_pd_x.to_numpy()
-        train_x = np.expand_dims(train_x, -1)
-    else:
-        train_x = train_pd_x
-
-    if issubclass(test_pd_x.__class__, pd.DataFrame):
-        test_x = test_pd_x.to_numpy()
-        test_x = np.expand_dims(test_x, -1)
-    else:
-        test_x = test_pd_x
-
-    saved_svs = []
-
-    img_save_path = config['save_model_path'] + config['model_name'] + "/windowshap/"
-    path = pathlib.Path(img_save_path)
-    path.mkdir(parents=True, exist_ok=True)
-
-    #background_start = random.randint(0, len(train_x) - num_background)
-    #background_data = train_x[background_start:background_start+num_background]
-    #test_data = test_x[test_idx:test_idx + num_test_samples]
-
-    # if wrap_model:
-    #     wrapped_model = modelwrapper(model, n_classes=config['num_classes'])
-    # else:
-    #     wrapped_model = brits_wrapper(model)
-
-    # tic = timeit.default_timer()
-    # ts_phi_1 = np.zeros((len(test_data),test_data.shape[1], test_data.shape[2]))
-
-
-
-
-
-
-    from timeshap.wrappers import TorchModelWrapper
-    model_wrapped = TorchModelWrapper(model, batch_budget=350000) #orig_budget = 750000
-    f_hs = lambda x, y=None: model_wrapped.predict_last_hs(x, y)
-
-    average_event = pd.DataFrame(np.expand_dims(np.mean(train_x, axis=(0,1)), axis=0), columns=feature_names)
-    #pos_x_data = test_data
-    positive_sequence_id = None
-    sequence_id_feat = None
-    verbose = True
-    model_features = feature_names
-    plot_feats = {k:k for k in feature_names}
-
-    #test_data_sample = np.expand_dims(test_x[7], axis=0)
-    test_data_sample = np.expand_dims(test_x[test_idx], axis=0)
-
-    #explainer = TimeShapKernel(f_hs, average_event, 0, "feature")
-    #shap_values = explainer.shap_values(test_data_sample, pruning_idx=0, **{'nsamples': 1000})
-    #temp = np.array([f_hs(x) for x in test_x]).squeeze().argmax(-1)
-
-
-
-    pruning_dict = {'tol': -1.0, }
-    #pruning_dict = {'tol': 0.025, }
-    coal_plot_data, coal_prun_idx = local_pruning(f_hs, test_data_sample,pruning_dict, average_event,  verbose=verbose)
-    # coal_prun_idx is in negative terms
-    pruning_idx = test_data_sample.shape[1] + coal_prun_idx
-    # pruning_plot = plot_temp_coalition_pruning(coal_plot_data, coal_prun_idx, plot_limit=40)
-    # pruning_plot
-
-    event_dict = {'rs': 42, 'nsamples': 12000}
-    event_data = local_event(f_hs, test_data_sample, event_dict, positive_sequence_id, sequence_id_feat, average_event, pruning_idx)
-    # event_plot = plot_event_heatmap(event_data)
-    # event_plot
-
-    feature_dict = {'rs': 42, 'nsamples': 12000, 'feature_names': model_features, 'plot_features': plot_feats}
-    feature_data = local_feat(f_hs, test_data_sample, feature_dict, positive_sequence_id, sequence_id_feat, average_event, pruning_idx)
-    # feature_plot = plot_feat_barplot(feature_data, feature_dict.get('top_feats'), feature_dict.get('plot_features'))
-    # feature_plot
-
-
-    print("fin")
-    saved_svs.append(event_data)
-    saved_svs.append(feature_data)
-    saved_svs.append(coal_plot_data)
-
-
-
-
-    # for i in range(len(test_data)):
-    #     print("finally working!!!")
-    return saved_svs
-        #ts_phi_1[i,:,:] = gtw.shap_values()
-
-    # var = 0
-    # phi_index = 0
-    # heat_map(start=0, stop=120, x=test_x[test_idx + phi_index, :, var], shap_values=ts_phi_1[phi_index, :, var], var_name='Observed', plot_type='bar')
-
-    # heat_map(start=0, stop=120, x=test_x[num_test + phi_index, :, var], shap_values=ts_phi_2[phi_index, :, var], var_name='Observed', plot_type='bar')
-    # heat_map(start=0, stop=120, x=test_x[num_test + phi_index, :, var], shap_values=ts_phi_3[phi_index, :, var], var_name='Variable', plot_type='bar')
+# def do_TimeSHAP(model, config, train_pd_x, test_pd_x, window_len=10, feature_names = [], wrap_model=True, model_type='lstm', num_background=50, test_idx=28, num_test_samples=1):
+#     if issubclass(train_pd_x.__class__, pd.DataFrame):
+#         train_x = train_pd_x.to_numpy()
+#         train_x = np.expand_dims(train_x, -1)
+#     else:
+#         train_x = train_pd_x
+#
+#     if issubclass(test_pd_x.__class__, pd.DataFrame):
+#         test_x = test_pd_x.to_numpy()
+#         test_x = np.expand_dims(test_x, -1)
+#     else:
+#         test_x = test_pd_x
+#
+#     saved_svs = []
+#
+#     img_save_path = config['save_model_path'] + config['model_name'] + "/windowshap/"
+#     path = pathlib.Path(img_save_path)
+#     path.mkdir(parents=True, exist_ok=True)
+#
+#     #background_start = random.randint(0, len(train_x) - num_background)
+#     #background_data = train_x[background_start:background_start+num_background]
+#     #test_data = test_x[test_idx:test_idx + num_test_samples]
+#
+#     # if wrap_model:
+#     #     wrapped_model = modelwrapper(model, n_classes=config['num_classes'])
+#     # else:
+#     #     wrapped_model = brits_wrapper(model)
+#
+#     # tic = timeit.default_timer()
+#     # ts_phi_1 = np.zeros((len(test_data),test_data.shape[1], test_data.shape[2]))
+#
+#
+#
+#
+#
+#
+#     from timeshap.wrappers import TorchModelWrapper
+#     model_wrapped = TorchModelWrapper(model, batch_budget=350000) #orig_budget = 750000
+#     f_hs = lambda x, y=None: model_wrapped.predict_last_hs(x, y)
+#
+#     average_event = pd.DataFrame(np.expand_dims(np.mean(train_x, axis=(0,1)), axis=0), columns=feature_names)
+#     #pos_x_data = test_data
+#     positive_sequence_id = None
+#     sequence_id_feat = None
+#     verbose = True
+#     model_features = feature_names
+#     plot_feats = {k:k for k in feature_names}
+#
+#     #test_data_sample = np.expand_dims(test_x[7], axis=0)
+#     test_data_sample = np.expand_dims(test_x[test_idx], axis=0)
+#
+#     #explainer = TimeShapKernel(f_hs, average_event, 0, "feature")
+#     #shap_values = explainer.shap_values(test_data_sample, pruning_idx=0, **{'nsamples': 1000})
+#     #temp = np.array([f_hs(x) for x in test_x]).squeeze().argmax(-1)
+#
+#
+#
+#     pruning_dict = {'tol': -1.0, }
+#     #pruning_dict = {'tol': 0.025, }
+#     coal_plot_data, coal_prun_idx = local_pruning(f_hs, test_data_sample,pruning_dict, average_event,  verbose=verbose)
+#     # coal_prun_idx is in negative terms
+#     pruning_idx = test_data_sample.shape[1] + coal_prun_idx
+#     # pruning_plot = plot_temp_coalition_pruning(coal_plot_data, coal_prun_idx, plot_limit=40)
+#     # pruning_plot
+#
+#     event_dict = {'rs': 42, 'nsamples': 12000}
+#     event_data = local_event(f_hs, test_data_sample, event_dict, positive_sequence_id, sequence_id_feat, average_event, pruning_idx)
+#     # event_plot = plot_event_heatmap(event_data)
+#     # event_plot
+#
+#     feature_dict = {'rs': 42, 'nsamples': 12000, 'feature_names': model_features, 'plot_features': plot_feats}
+#     feature_data = local_feat(f_hs, test_data_sample, feature_dict, positive_sequence_id, sequence_id_feat, average_event, pruning_idx)
+#     # feature_plot = plot_feat_barplot(feature_data, feature_dict.get('top_feats'), feature_dict.get('plot_features'))
+#     # feature_plot
+#
+#
+#     print("fin")
+#     saved_svs.append(event_data)
+#     saved_svs.append(feature_data)
+#     saved_svs.append(coal_plot_data)
+#
+#
+#
+#
+#     # for i in range(len(test_data)):
+#     #     print("finally working!!!")
+#     return saved_svs
+#         #ts_phi_1[i,:,:] = gtw.shap_values()
+#
+#     # var = 0
+#     # phi_index = 0
+#     # heat_map(start=0, stop=120, x=test_x[test_idx + phi_index, :, var], shap_values=ts_phi_1[phi_index, :, var], var_name='Observed', plot_type='bar')
+#
+#     # heat_map(start=0, stop=120, x=test_x[num_test + phi_index, :, var], shap_values=ts_phi_2[phi_index, :, var], var_name='Observed', plot_type='bar')
+#     # heat_map(start=0, stop=120, x=test_x[num_test + phi_index, :, var], shap_values=ts_phi_3[phi_index, :, var], var_name='Variable', plot_type='bar')

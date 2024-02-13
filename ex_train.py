@@ -10,9 +10,6 @@ from sklearn.base import BaseEstimator
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
-import gru_ode_bayes
-from gru_ode_bayes import data_utils
-import tensorflow as tf
 
 
 def format_pds(pd_x, pd_y, batch_sz, current_device):

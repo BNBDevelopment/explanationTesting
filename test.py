@@ -24,6 +24,7 @@ def pickel_results(obj, fname):
     pickle.dump(obj, pfile)
     pfile.close()
 
+
 def main():
     current_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     lr = 0.0001
