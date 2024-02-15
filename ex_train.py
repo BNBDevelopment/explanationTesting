@@ -117,15 +117,18 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
                     outs, loss = model_forward(model, config_dict, loss_fn, x, y)
 
                     preds = torch.argmax(outs, dim=-1).detach()
+                    preds = preds.cpu().detach()
+                    y = y.cpu().detach().squeeze()
+
                     incor = torch.sum(torch.abs(preds-y)).detach().item()
                     epoch_total += preds.size(0)
                     epoch_incorrect += incor
                     epoch_correct += preds.size(0) - incor
 
-                    false_pos += sum(((preds == 1).to(torch.int8) + (y == 0).to(torch.int8)) == 2).detach().item()
-                    false_neg += sum(((preds == 0).to(torch.int8) + (y == 1).to(torch.int8)) == 2).detach().item()
-                    true_pos += sum(((preds == 1).to(torch.int8) + (y == 1).to(torch.int8)) == 2).detach().item()
-                    true_neg += sum(((preds == 0).to(torch.int8) + (y == 0).to(torch.int8)) == 2).detach().item()
+                    false_pos += torch.sum(np.logical_and(preds == 1, y == 0)).item()
+                    false_neg += torch.sum(np.logical_and(preds == 0, y == 1)).item()
+                    true_pos += torch.sum(np.logical_and(preds == 1, y == 1)).item()
+                    true_neg += torch.sum(np.logical_and(preds == 0, y == 0)).item()
 
                     metric_auc.update(preds, y)
                     metric_aucroc.update(preds, y)

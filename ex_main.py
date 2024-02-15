@@ -3,6 +3,8 @@ import time
 
 import torch
 import torch.nn as nn
+import yaml
+from yaml import CLoader
 
 import ex_dataset
 from analysis import run_analysis
@@ -26,41 +28,32 @@ def pickel_results(obj, fname):
     pfile.close()
 
 def main():
-    current_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    lr = 0.0001
-    cutoff_seq_len = 70
-    excludes = ['Glascow coma scale eye opening', 'Glascow coma scale motor response',
-                'Glascow coma scale verbal response']
-    num_features = 18 - len(excludes)
-    n_classes = 2
+    try:
+        stream = open("config.yaml", "r")
+        configuration = yaml.load(stream,  Loader=CLoader)
+    finally:
+        stream.close()
 
-    loss_weights = torch.ones((n_classes))
-    loss_weights[1] = 1.5
+    configuration['max_seq_len'] = configuration['cutoff_seq_len']
+    configuration['num_classes'] = 2
+    if not configuration['excludes'] is None:
+        configuration['num_features'] = 18 - len(configuration['excludes'])
+    else:
+        configuration['num_features'] = 18
+    configuration['n_classes'] = 2
 
-    configuration = {
-        'n_epochs': 100,  # default from their code
-        'lr': lr,
-        'batch_size': 32,  # their code says is best
-        'device': current_device,
-        'loss_fn': nn.BCELoss(loss_weights).to(current_device),  # default from their code
-        #'loss_fn': nn.NLLLoss(loss_weights),
-        'save_model_path': "_saved_models/",
-        'model_name': "TestModel_B_128_3",
-        'excluded_features_list': excludes,
-        'mimic_data_path': "./data/in-hospital-mortality/",
-        'datadir': "./data/my_mimic/",
-        'max_seq_len': cutoff_seq_len,
-        'data_filename': "_ihm_30",
-        'num_classes': n_classes,
-        'num_features': num_features,
-        'model_n_layers': 5,
-        'model_dropout': 0.1,
-        'model_bias': True,
-        'model_bidirectional': True,
-        'model_hdim': 256,
-        'load_model': False,
-        'load_model_path': "_saved_models/TestModel_B_128_3_epoch62_aucroc0.63554.pt"
-    }
+
+    if configuration['loss_type'] == "NLL":
+        configuration['loss_fn'] = nn.NLLLoss()
+        #loss_fn: nn.NLLLoss(loss_weights)
+    elif configuration['loss_type'] == "BCE":
+        configuration['loss_fn'] = nn.BCELoss()
+    else:
+        raise NotImplementedError(f"Loss type {configuration['loss_type']} is not implemented!")
+    # loss_weights = torch.ones((n_classes))
+    # loss_weights[1] = 1.5
+
+
 
     train_x, train_y = ex_dataset.load_file_data(configuration, data_type="train")
     val_x, val_y = ex_dataset.load_file_data(configuration, data_type="val")
@@ -74,7 +67,7 @@ def main():
         #model_type = "channelwise_lstm"
 
         model = select_model(model_type, configuration)
-        configuration['optimizer'] = torch.optim.Adam(model.parameters(), lr=lr)  # from paper
+        configuration['optimizer'] = torch.optim.Adam(model.parameters(), lr=configuration['lr'])  # from paper
 
         model = train(model, configuration, train_x, train_y, val_x, val_y)
 
