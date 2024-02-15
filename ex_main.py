@@ -16,9 +16,11 @@ import random
 import numpy as np
 
 def set_random_seed(seed_val):
+    print(f"Init - Setting random seed to {seed_val}")
     random.seed(seed_val)
     np.random.seed(seed_val)
     torch.manual_seed(seed_val)
+
 set_random_seed(12345)
 
 

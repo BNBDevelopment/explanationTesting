@@ -155,8 +155,11 @@ preinit_feats = {
 
 def data_postproc(train_x, categorical_idx, inorder_col_list):
     print("Status - Starting Data PostProcessing")
+    #TODO: confirm cateogrical is exlcude from eman std update
+    #TODO: concat with mask
     for r, row in enumerate(train_x):
         last_feature_vect = [preinit_feats[x] for x in inorder_col_list if x in preinit_feats.keys()]
+        orig_or_imputed_mask = np.where(train_x != train_x)
 
         for j, timepoint in enumerate(row):
             #carry forward values
@@ -165,22 +168,24 @@ def data_postproc(train_x, categorical_idx, inorder_col_list):
                     timepoint[i] = last_feature_vect[i]
                 else:
                     last_feature_vect[i] = timepoint[i]
-                # TODO: exclude categoricals from mean std update
-                # if i in categorical_idx:
-                #     timepoint[i] = (timepoint[i] - feat_mean[i]) / feat_std[i]
             row[j] = timepoint
         train_x[r] = row
 
 
     if np.isnan(train_x).any():
         raise ValueError("Failure, found at least one NaN in the training data after carry-forward was implemented")
-    masked_mean = np.nanmean(train_x, axis=0)
-    masked_std = np.nanstd(train_x, axis=0)
+    masked_mean = np.mean(train_x, axis=0)
+    masked_std = np.std(train_x, axis=0)
     for cat in categorical_idx:
-        masked_mean[:,cat] = 0
+        masked_mean[:, cat] = 0
         masked_std[:, cat] = 1
 
+    for location in np.argwhere(masked_std==0):
+        masked_std[location] = 1
+
     train_x = (train_x - masked_mean) / masked_std
+    if np.isnan(train_x).any():
+        raise ValueError("Failure, found at least one NaN in the training data after mean std normalization")
     return train_x
 
 
@@ -190,7 +195,40 @@ def data_postproc(train_x, categorical_idx, inorder_col_list):
     #return clean_row
 
 
-def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_len=30, num_features=18, categorical_feats=[], excludes=[]):
+def merge_time_into_windows(train_x, window_size):
+    hour_index = 0
+    final_train = []
+    for icu_stay in train_x:
+        icu_stay = icu_stay[0]
+        win_start = 0
+        win_end = window_size
+        tps_to_combine = []
+        merged_stay = []
+        stay_max_time = np.nanmax(icu_stay[:, hour_index])
+        for timepoint in icu_stay:
+            for
+            if timepoint[hour_index] >= win_start and timepoint[hour_index] < win_end:
+                tps_to_combine.append(timepoint)
+            else:
+                #DO merge
+                if win_start >= stay_max_time:
+                    break
+                win_start = win_end
+                win_end = win_end + window_size
+
+                if len(tps_to_combine) > 0:
+                    tps_to_combine.reverse()
+                    merged_window = tps_to_combine[0]
+                    for i in range(1, len(tps_to_combine)):
+                        replace_idxs = np.argwhere(merged_window != merged_window)
+                        merged_window[replace_idxs] = tps_to_combine[i][replace_idxs]
+                    merged_stay.append(merged_window)
+        final_train.append(np.expand_dims(np.stack(merged_stay), axis=0))
+    return final_train
+
+
+
+def load_mimic_binary_classification(config, base_path, filename, datatype, cutoff_seq_len=30, num_features=18, categorical_feats=[], excludes=[]):
     print("Status - Loading MIMIC-III data")
     val_file_name = "val_listfile.csv"
     test_file_name = "test_listfile.csv"
@@ -211,8 +249,6 @@ def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_l
 
     for i, stay_ref in enumerate(train_stay_ref):
         train_data = pd.read_csv(base_path / (read_folder+"/"+stay_ref))
-        for drop_col in excludes:
-            train_data = train_data.drop(drop_col, axis=1)
 
         passes_filter = filter_data_check(train_data, cutoff_seq_len)
 
@@ -225,6 +261,11 @@ def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_l
             used_seq_lens.append(clean_row.shape[1])
         else:
             notused_seq_lens.append(train_data.shape[0])
+
+    clean_data = merge_time_into_windows(clean_data, config['merge_time_size'])
+    if not excludes is None:
+        for drop_col in excludes:
+            train_data = train_data.drop(drop_col, axis=1)
 
     max_used_len = max(used_seq_lens)
     padded_items = []
@@ -261,7 +302,7 @@ def load_file_data(config, data_type="train"):
     else:
         path = Path(mimic_data_path)
 
-        train_x, train_y = load_mimic_binary_classification(path, data_type+"_listfile.csv", data_type, cutoff_seq_len=max_seq_len,
+        train_x, train_y = load_mimic_binary_classification(config, path, data_type+"_listfile.csv", data_type, cutoff_seq_len=max_seq_len,
                                                             num_features=num_features, categorical_feats=categoricals, excludes=exclude_list)
         save_data(train_x, x_path)
         save_data(train_y, y_path)

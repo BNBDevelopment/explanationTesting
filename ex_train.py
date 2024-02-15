@@ -79,19 +79,21 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
             epoch_loss = 0
             e_iters = 0
             # for data_idx in range(0, len(pd_x)):
-            for x, y in tqdm(train_loader, unit="batch", total=len(train_loader)):
-                e_iters += 1
+            with tqdm(train_loader, unit="batch", total=len(train_loader)) as tepoch:
+                for x, y in tepoch:
+                    tepoch.set_description(f"Epoch {epoch} with epoch_loss: {epoch_loss}")
+                    e_iters += 1
 
-                #run the model
-                outs, loss = model_forward(model, config_dict, loss_fn, x, y)
+                    #run the model
+                    outs, loss = model_forward(model, config_dict, loss_fn, x, y)
 
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
-                epoch_loss += loss.item()
+                    epoch_loss += loss.item()
 
-            print(f"\nepoch loss: {epoch_loss/e_iters}")
+                print(f"\nepoch loss: {epoch_loss/e_iters}")
 
             if val_x is None and val_y is None:
                 print("Skipping validation...")
