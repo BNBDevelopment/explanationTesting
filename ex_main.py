@@ -53,8 +53,7 @@ def main():
     # loss_weights = torch.ones((n_classes))
     # loss_weights[1] = 1.5
 
-
-
+    print("Status - Starting Initial Data Load")
     train_x, train_y = ex_dataset.load_file_data(configuration, data_type="train")
     val_x, val_y = ex_dataset.load_file_data(configuration, data_type="val")
     do_wrapping_of_model = True

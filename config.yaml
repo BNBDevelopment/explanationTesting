@@ -1,0 +1,32 @@
+categorical_features:
+  - "Glascow coma scale eye opening"
+  - "Glascow coma scale motor response"
+  - "Glascow coma scale verbal response"
+excludes:
+  - "Hours"
+
+n_epochs: 100
+lr: 0.00001
+loss_type: "BCE"
+
+batch_size: 64
+cutoff_seq_len: 80
+
+device: cpu
+
+save_model_path: "_saved_models/"
+model_name: "TestModel_B_128_3"
+mimic_data_path: "./data/in-hospital-mortality/"
+datadir: "./data/my_mimic/"
+
+data_filename: "_ihm_30"
+
+model_n_layers: 5
+model_dropout: 0.1
+model_bias: True
+model_bidirectional: True
+model_hdim: 256
+load_model_path: "_saved_models/TestModel_B_128_3_epoch62_aucroc0.63554.pt"
+
+load_model: False
+load_data: False

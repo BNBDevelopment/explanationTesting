@@ -101,11 +101,11 @@ def gen_multivar_regression_casual_data(num_fake_samples=1000, window_size=1, wi
 def filter_data_check(train_data, cutoff_seq_len):
     passes = True
 
-    if train_data.shape[0] < cutoff_seq_len:
-        passes = False
-
-    if train_data['Hours'].iloc[-1] < 47.0:
-        passes = False
+    # if train_data.shape[0] < cutoff_seq_len:
+    #     passes = False
+    #
+    # if train_data['Hours'].iloc[-1] < 47.0:
+    #     passes = False
 
     return passes
 
@@ -120,6 +120,7 @@ def convert_glascow(row_item):
 
 
 def data_preproc(train_data, categorical_feats, cutoff_seq_len):
+    #print("Status - Starting Data PreProcessing")
     # CLEANING DATA
     # replace all NaN values with 0
     # train_data[train_data != train_data] = 0
@@ -132,12 +133,31 @@ def data_preproc(train_data, categorical_feats, cutoff_seq_len):
     clean_row = np.expand_dims(train_data.to_numpy(), axis=0)[:, :cutoff_seq_len, :]
     return clean_row
 
+preinit_feats = {
+    "Capillary refill rate": 0.0,
+    "Diastolic blood pressure": 59.0,
+    "Fraction inspired oxygen": 0.21,
+    "Glascow coma scale eye opening": 4,
+    "Glascow coma scale motor response": 6,
+    "Glascow coma scale total": 15,
+    "Glascow coma scale verbal response": 5,
+    "Glucose": 128.0,
+    "Heart Rate": 86,
+    "Height": 170.0,
+    "Mean blood pressure": 77.0,
+    "Oxygen saturation": 98.0,
+    "Respiratory rate": 19,
+    "Systolic blood pressure": 118.0,
+    "Temperature": 36.6,
+    "Weight": 81.0,
+    "pH": 7.4,
+}
 
-def data_postproc(train_x, categorical_idx):
+def data_postproc(train_x, categorical_idx, inorder_col_list):
+    print("Status - Starting Data PostProcessing")
     for r, row in enumerate(train_x):
-        last_feature_vect = np.nanmean(train_x, axis=(0,1))
-        feat_mean = np.nanmean(train_x, axis=(0,1))
-        feat_std = np.nanstd(train_x, axis=(0,1))
+        last_feature_vect = [preinit_feats[x] for x in inorder_col_list if x in preinit_feats.keys()]
+
         for j, timepoint in enumerate(row):
             #carry forward values
             for i, feat in enumerate(timepoint):
@@ -146,11 +166,21 @@ def data_postproc(train_x, categorical_idx):
                 else:
                     last_feature_vect[i] = timepoint[i]
                 # TODO: exclude categoricals from mean std update
-                if i in categorical_idx:
-                    timepoint[i] = (timepoint[i] - feat_mean[i]) / feat_std[i]
+                # if i in categorical_idx:
+                #     timepoint[i] = (timepoint[i] - feat_mean[i]) / feat_std[i]
             row[j] = timepoint
         train_x[r] = row
 
+
+    if np.isnan(train_x).any():
+        raise ValueError("Failure, found at least one NaN in the training data after carry-forward was implemented")
+    masked_mean = np.nanmean(train_x, axis=0)
+    masked_std = np.nanstd(train_x, axis=0)
+    for cat in categorical_idx:
+        masked_mean[:,cat] = 0
+        masked_std[:, cat] = 1
+
+    train_x = (train_x - masked_mean) / masked_std
     return train_x
 
 
@@ -161,7 +191,7 @@ def data_postproc(train_x, categorical_idx):
 
 
 def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_len=30, num_features=18, categorical_feats=[], excludes=[]):
-
+    print("Status - Loading MIMIC-III data")
     val_file_name = "val_listfile.csv"
     test_file_name = "test_listfile.csv"
 
@@ -181,6 +211,8 @@ def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_l
 
     for i, stay_ref in enumerate(train_stay_ref):
         train_data = pd.read_csv(base_path / (read_folder+"/"+stay_ref))
+        for drop_col in excludes:
+            train_data = train_data.drop(drop_col, axis=1)
 
         passes_filter = filter_data_check(train_data, cutoff_seq_len)
 
@@ -205,8 +237,8 @@ def load_mimic_binary_classification(base_path, filename, datatype, cutoff_seq_l
     train_x = np.concatenate((padded_items), axis=0)
     train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
 
-    categroical_idx = [i for i in range(len(train_data.columns)) if train_data.columns[i] in categorical_feats]
-    train_x = data_postproc(train_x, categroical_idx)
+    categorical_idx = [i for i in range(len(train_data.columns)) if train_data.columns[i] in categorical_feats]
+    train_x = data_postproc(train_x, categorical_idx, list(train_data.columns))
 
     return train_x, train_y
 
