@@ -9,6 +9,8 @@ import torch
 import numpy as np
 import re
 
+from mimic3models.preprocessing import Normalizer, Discretizer
+
 Y_GEN_FUNCTIONS = {
     "simple":  lambda list_vals : (sum(list_vals) / 1.5) ** 1.2
 }
@@ -153,14 +155,13 @@ preinit_feats = {
     "pH": 7.4,
 }
 
-def data_postproc(train_x, categorical_idx, inorder_col_list):
+def data_postproc(train_x, categorical_idx, inorder_col_list, config):
     print("Status - Starting Data PostProcessing")
     #TODO: confirm cateogrical is exlcude from eman std update
     #TODO: concat with mask
+    orig_or_imputed_mask = (train_x != train_x).astype(float)
     for r, row in enumerate(train_x):
         last_feature_vect = [preinit_feats[x] for x in inorder_col_list if x in preinit_feats.keys()]
-        orig_or_imputed_mask = np.where(train_x != train_x)
-
         for j, timepoint in enumerate(row):
             #carry forward values
             for i, feat in enumerate(timepoint):
@@ -170,7 +171,6 @@ def data_postproc(train_x, categorical_idx, inorder_col_list):
                     last_feature_vect[i] = timepoint[i]
             row[j] = timepoint
         train_x[r] = row
-
 
     if np.isnan(train_x).any():
         raise ValueError("Failure, found at least one NaN in the training data after carry-forward was implemented")
@@ -186,7 +186,11 @@ def data_postproc(train_x, categorical_idx, inorder_col_list):
     train_x = (train_x - masked_mean) / masked_std
     if np.isnan(train_x).any():
         raise ValueError("Failure, found at least one NaN in the training data after mean std normalization")
-    return train_x
+
+    if config['input_concat_w_mask']:
+        return np.concatenate((train_x, orig_or_imputed_mask), axis=-1)
+    else:
+        return train_x
 
 
 
@@ -195,35 +199,36 @@ def data_postproc(train_x, categorical_idx, inorder_col_list):
     #return clean_row
 
 
-def merge_time_into_windows(train_x, window_size):
+def merge_time_into_windows(train_x, window_size, ts_size):
     hour_index = 0
     final_train = []
     for icu_stay in train_x:
         icu_stay = icu_stay[0]
-        win_start = 0
-        win_end = window_size
         tps_to_combine = []
         merged_stay = []
         stay_max_time = np.nanmax(icu_stay[:, hour_index])
-        for timepoint in icu_stay:
-            for
-            if timepoint[hour_index] >= win_start and timepoint[hour_index] < win_end:
-                tps_to_combine.append(timepoint)
-            else:
-                #DO merge
-                if win_start >= stay_max_time:
-                    break
-                win_start = win_end
-                win_end = win_end + window_size
 
-                if len(tps_to_combine) > 0:
-                    tps_to_combine.reverse()
-                    merged_window = tps_to_combine[0]
-                    for i in range(1, len(tps_to_combine)):
-                        replace_idxs = np.argwhere(merged_window != merged_window)
-                        merged_window[replace_idxs] = tps_to_combine[i][replace_idxs]
-                    merged_stay.append(merged_window)
-        final_train.append(np.expand_dims(np.stack(merged_stay), axis=0))
+        windows = [(x*window_size,(x+1)*window_size) for x in range(0,int(ts_size))]
+        for window in windows:
+            matching_timepoint_idxs = np.argwhere(np.logical_and(icu_stay[:,hour_index] >= window[0], icu_stay[:,hour_index] < window[1]))
+            matching_timepoints = icu_stay[matching_timepoint_idxs,:].squeeze()
+            if len(matching_timepoints.shape) > 1:
+                matching_timepoints = list(matching_timepoints)
+            else:
+                matching_timepoints = [matching_timepoints]
+
+            if len(matching_timepoints) > 0:
+                matching_timepoints.reverse()
+                merged_window = matching_timepoints[0]
+                for i in range(1, len(matching_timepoints)):
+                    replace_idxs = np.argwhere(merged_window != merged_window)
+                    if math.prod(replace_idxs.shape) != 0:
+                        merged_window[replace_idxs] = matching_timepoints[i][replace_idxs]
+                merged_stay.append(merged_window)
+            else:
+                merged_stay.append(np.ones(icu_stay.shape[-1])*np.nan)
+
+        final_train.append(np.stack(merged_stay[:int(ts_size)]))
     return final_train
 
 
@@ -246,40 +251,68 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
 
     clean_data = []
     matching_ys = []
+    print(f"Using '{config['data_preproc']}' as preprocessing method.")
 
     for i, stay_ref in enumerate(train_stay_ref):
         train_data = pd.read_csv(base_path / (read_folder+"/"+stay_ref))
 
-        passes_filter = filter_data_check(train_data, cutoff_seq_len)
+        matching_ys.append(train_file["y_true"].iloc[i])
 
-        if passes_filter:
-
-            clean_row = data_preproc(train_data, categorical_feats, cutoff_seq_len)
-            clean_data.append(clean_row)
-            matching_ys.append(train_file["y_true"].iloc[i])
-
-            used_seq_lens.append(clean_row.shape[1])
+        if config['data_preproc'] == 'PaperDescription':
+            passes_filter = filter_data_check(train_data, cutoff_seq_len)
+            if passes_filter:
+                clean_row = data_preproc(train_data, categorical_feats, cutoff_seq_len)
+                clean_data.append(clean_row)
+                used_seq_lens.append(clean_row.shape[1])
+            else:
+                notused_seq_lens.append(train_data.shape[0])
+        elif config['data_preproc'] == 'mimic3benchmark':
+            temp = train_data.fillna('')
+            temp['Glascow coma scale total'] = temp['Glascow coma scale total'].astype(str).apply(
+                lambda x: x.split('.')[0])
+            temp = temp.to_numpy()
+            clean_data.append(temp)
+            used_seq_lens.append(temp.shape[1])
         else:
-            notused_seq_lens.append(train_data.shape[0])
+            clean_data.append(train_data)
+            used_seq_lens.append(train_data.shape[1])
 
-    clean_data = merge_time_into_windows(clean_data, config['merge_time_size'])
-    if not excludes is None:
-        for drop_col in excludes:
-            train_data = train_data.drop(drop_col, axis=1)
+    if config['data_preproc'] == 'mimic3benchmark':
+        discretizer = Discretizer(timestep=float(config['merge_time_size']),
+                                  store_masks=True,
+                                  impute_strategy='previous',
+                                  start_time='zero')
+        #for x in categorical_feats:
+        # temp['Glascow coma scale eye opening'] = temp['Glascow coma scale eye opening'].fillna('None')
+        # temp['Glascow coma scale motor response'] = temp['Glascow coma scale motor response'].fillna('None')
+        # temp['Glascow coma scale verbal response'] = temp['Glascow coma scale verbal response'].fillna('None')
 
-    max_used_len = max(used_seq_lens)
-    padded_items = []
-    for item in clean_data:
-        padlen = max_used_len-item.shape[1]
-        padded_items.append(np.pad(item, ((0,0), (0,padlen), (0,0))))
+        discretizer_header = discretizer.transform(temp)[1].split(',')
+        cont_channels = [i for (i, x) in enumerate(discretizer_header) if x.find("->") == -1]
+        normalizer = Normalizer(fields=cont_channels)
+        normalizer_state = 'ihm_ts1.0.input_str_previous.start_time_zero.normalizer'
+        normalizer.load_params(normalizer_state)
 
-    train_x = np.zeros((0, max_used_len, num_features))
-    train_y = np.zeros((0))
-    train_x = np.concatenate((padded_items), axis=0)
-    train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
+        ts = [config['hours_to_eval'] for i in range(len(clean_data))]
+        clean_data = [discretizer.transform(X.astype(str), end=t)[0] for (X, t) in zip(clean_data, ts)]
+        if normalizer is not None:
+            clean_data = [normalizer.transform(X) for X in clean_data]
+        train_x = np.stack(clean_data, axis=0)
+        train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
+    else:
+        config['ts_size'] = config['hours_to_eval'] // config['merge_time_size']
+        clean_data = merge_time_into_windows(clean_data, config['merge_time_size'], config['ts_size'])
 
-    categorical_idx = [i for i in range(len(train_data.columns)) if train_data.columns[i] in categorical_feats]
-    train_x = data_postproc(train_x, categorical_idx, list(train_data.columns))
+        train_x = np.stack(clean_data, axis=0)
+        train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
+        if not excludes is None:
+            nondrop_col_idxs = [x for x in range(0, len(train_data.columns)) if train_data.columns[x] not in excludes]
+            train_x = train_x[:,:,nondrop_col_idxs]
+
+        categorical_idx = [i for i in range(len(train_data.columns)) if train_data.columns[i] in categorical_feats]
+        train_x = data_postproc(train_x, categorical_idx, list(train_data.columns), config)
+
+
 
     return train_x, train_y
 

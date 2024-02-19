@@ -1,3 +1,4 @@
+import copy
 import os.path
 
 import numpy as np
@@ -52,6 +53,8 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
     loss_fn = config_dict['loss_fn']
     save_model_path = config_dict['save_model_path']
     model_name = config_dict['model_name']
+
+    best_model = model
 
     if issubclass(model.__class__, BaseEstimator):
         model.fit(pd_x, pd_y)
@@ -113,10 +116,17 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
                 true_pos = 0
                 true_neg = 0
 
+                val_outs = []
+                val_true = []
+
                 for x, y in tqdm(val_loader, unit="batch", total=len(val_loader)):
                     e_counts += 1
 
                     outs, loss = model_forward(model, config_dict, loss_fn, x, y)
+
+                    val_outs.append(outs.detach().cpu().numpy())
+                    val_true.append(y.detach().cpu().numpy())
+
 
                     preds = torch.argmax(outs, dim=-1).detach()
                     preds = preds.cpu().detach()
@@ -137,20 +147,26 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
 
                     epoch_validation_loss += loss.item()
 
-                auc_val = metric_auc.compute()
-                aucroc_val = metric_aucroc.compute()
+                #auc_val = metric_auc.compute()
+                #aucroc_val = metric_aucroc.compute()
+                from sklearn import metrics
+                auc_roc = metrics.roc_auc_score(np.concatenate(val_true), np.concatenate(val_outs)[:, 1])
+                #auc_roc = metrics.auc(np.concatenate(val_true), np.concatenate(val_outs)[:, 1])
+
                 print(f"\nEpoch {epoch} \t\t Validation Loss: {epoch_validation_loss/e_counts} \t\t Total: {epoch_total} \t\t Correct: {epoch_correct} \t\t Fails: {epoch_incorrect}")
-                print(f"Epoch {epoch} \t\t Accuracy: {epoch_correct/epoch_total}\t\t AUCROC: {aucroc_val.detach().item()} \t\t AUC: {auc_val.detach().item()}")
+                print(f"Epoch {epoch} \t\t Accuracy: {epoch_correct/epoch_total}\t\t AUCROC: {auc_roc}")
                 print(f"Epoch {epoch} \t\t false_pos: {false_pos}\t\t false_neg: {false_neg}\t\t true_pos: {true_pos}\t\t true_neg: {true_neg}\t\t")
                 print("---------------------------- END EPOCH ------------------------------")
                 metric_auc.reset()
-                if aucroc_val > best_aucroc:
-                    best_aucroc = aucroc_val
+                if auc_roc > best_aucroc:
+                    best_aucroc = auc_roc
 
                     if os.path.exists(best_model_path):
                         os.remove(best_model_path)
-                    new_save_file_path = save_model_path + f"{model_name}_epoch{epoch}_aucroc{aucroc_val:.5f}.pt"
+                    new_save_file_path = save_model_path + f"{model_name}_epoch{epoch}_aucroc{auc_roc:.5f}.pt"
                     torch.save(model, new_save_file_path)
                     best_model_path = new_save_file_path
-        print(f"FINAL\t\t Best AUCROC: {best_aucroc}")
-    return model
+
+                    best_model = copy.deepcopy(model)
+        print(f"FINAL\t\t Best AUCROC: {best_aucroc} stored in model at location {best_model_path}")
+    return best_model

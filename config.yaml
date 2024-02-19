@@ -6,13 +6,13 @@ excludes:
   - "Hours"
 
 n_epochs: 100
-lr: 0.00001
+lr: 0.001
 loss_type: "BCE"
 
-batch_size: 64
+batch_size: 32
 cutoff_seq_len: 80
 
-device: cpu
+device: cuda
 
 save_model_path: "_saved_models/"
 model_name: "TestModel_B_128_3"
@@ -21,12 +21,16 @@ datadir: "./data/my_mimic/"
 
 data_filename: "_ihm_30"
 
-model_n_layers: 5
-model_dropout: 0.1
+model_n_layers: 2
+model_dropout: 0.3
 model_bias: True
 model_bidirectional: True
-model_hdim: 256
+model_hdim: 16
 load_model_path: "_saved_models/TestModel_B_128_3_epoch62_aucroc0.63554.pt"
 
 load_model: False
-load_data: False
+load_data: True
+merge_time_size: 1.0
+input_concat_w_mask: False
+data_preproc: mimic3benchmark
+hours_to_eval: 48.0

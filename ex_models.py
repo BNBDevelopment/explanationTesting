@@ -24,12 +24,20 @@ def basic_model(n_feats, n_classes):
 
 def select_model(model_type, config):
     num_classes = config['num_classes']
-    num_features = config['num_features']
     num_layers = config['model_n_layers']
     dropout = config['model_dropout']
     bias = config['model_bias']
     bidirectional = config['model_bidirectional']
     hidden_size = config['model_hdim']
+
+    if config['data_preproc'] == 'mimic3benchmark':
+        num_features = 76
+    else:
+        input_concat_w_mask = config['input_concat_w_mask']
+        if input_concat_w_mask:
+            num_features = config['num_features'] * 2
+        else:
+            num_features = config['num_features']
 
     if model_type == "basic":
         return basic_model(n_feats=num_features, n_classes=num_classes)
