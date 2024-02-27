@@ -172,6 +172,7 @@ def data_postproc(train_x, categorical_idx, inorder_col_list, config):
             row[j] = timepoint
         train_x[r] = row
 
+    train_x = train_x.astype(float)
     if np.isnan(train_x).any():
         raise ValueError("Failure, found at least one NaN in the training data after carry-forward was implemented")
     masked_mean = np.mean(train_x, axis=0)
@@ -203,10 +204,11 @@ def merge_time_into_windows(train_x, window_size, ts_size):
     hour_index = 0
     final_train = []
     for icu_stay in train_x:
-        icu_stay = icu_stay[0]
-        tps_to_combine = []
+        #icu_stay = icu_stay[0]
+        #tps_to_combine = []
         merged_stay = []
-        stay_max_time = np.nanmax(icu_stay[:, hour_index])
+        #stay_max_time = np.nanmax(icu_stay[:, hour_index])
+        icu_stay = icu_stay.to_numpy()
 
         windows = [(x*window_size,(x+1)*window_size) for x in range(0,int(ts_size))]
         for window in windows:
@@ -274,6 +276,16 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
             clean_data.append(temp)
             used_seq_lens.append(temp.shape[1])
         else:
+            cat_map = {
+                'Glascow coma scale eye opening': {'Spontaneously':4, 'To Pressure':2, 'To Sound':3, 'None':1},
+                'Glascow coma scale motor response': {'Obeys Commands':6, 'Localizing':5, 'Normal Flexion':4, 'Abnormal Flexion':3, 'Extension':2, 'None':1},
+                #'Glascow coma scale total': {},
+                'Glascow coma scale verbal response': {'Oriented':5, 'Confused':4, 'Words':3, 'Sounds':2, 'None':1},
+            }
+
+            for cat in categorical_feats:
+                train_data[cat] = train_data[cat].apply(lambda x: cat_map[cat][x] if x in cat_map[cat].keys()  else x).apply(lambda y: re.sub("\D", "", y) if type(y) == str else y)
+            train_data = train_data.replace("", np.nan)
             clean_data.append(train_data)
             used_seq_lens.append(train_data.shape[1])
 

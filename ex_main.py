@@ -8,7 +8,7 @@ from yaml import CLoader
 
 import ex_dataset
 from analysis import run_analysis
-from ex_explanation_methods import do_WindowSHAP, do_comte, do_GradCAM, do_COMTE, do_NUNCF
+from ex_explanation_methods import do_WindowSHAP, do_comte, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors
 from ex_models import V1Classifier, BasicLSTM, select_model
 from ex_train import train
 
@@ -76,7 +76,7 @@ def main():
     #test_x, test_y = load_mimic_binary_classification(path, "test_listfile.csv", "test", cutoff_seq_len=cutoff_seq_len, num_features=num_features, categorical_feats=excludes)
     test_x, test_y = ex_dataset.load_file_data(configuration, data_type="test")
 
-    test_subset_size = 300
+    test_subset_size = 10000
     test_x = test_x[:test_subset_size, :, :]
     test_y = test_y[:test_subset_size]
 
@@ -98,11 +98,12 @@ def main():
     methods_enabled = [
         #"WS",
         #"GCAM",
-        "COMTE",
+        #"COMTE",
         #"NUNCF"
+        "ANCH"
     ]
 
-    for i in range(11, n_explanation_test):
+    for i in range(99, n_explanation_test):
         to_test_idx = i//10
         set_random_seed(i)
 
@@ -152,6 +153,7 @@ def main():
 
                 print(f"COMTE runtime: {comte_end - comte_start} ")
             except Exception as e:
+                raise e
                 print(f"\n--FAILED-- in CoMTE! {e}")
 
         #NUNCF
@@ -167,7 +169,22 @@ def main():
 
                 print(f"NUNCF runtime: {nuncf_end - nuncf_start} ")
             except Exception as e:
+                raise e
                 print(f"\n--FAILED-- in NUNCF! {e}")
+
+        if "ANCH" in methods_enabled:
+            try:
+                print(f"Running Anchors...")
+                anchors_start = time.time()
+                res1 = do_Anchors(model, configuration, train_x, test_x, feature_names=ft, wrap_model=do_wrapping_of_model,
+                              model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
+                anchors_end = time.time()
+                anchors_res.append(res1)
+                pickel_results(anchors_res, f"pickel_results/anchors_results_{i}.pkl")
+
+                print(f"Anchors runtime: {anchors_end - windowshap_start} ")
+            except Exception as e:
+                print(f"\n--FAILED-- in Anchors! {e}")
 
     run_analysis(model, test_x)
 

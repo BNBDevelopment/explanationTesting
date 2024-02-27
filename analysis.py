@@ -520,3 +520,34 @@ def run_analysis(model, orig_inputs):
     # plt.title("")
     # plt.show()
     # plt.savefig("combined_by_feature.png")
+
+def plot_original_overlap_counterfactual(test_item, explan_res, feature_names, test_idx):
+    figure, axis = plt.subplots(8, 2, figsize=(10, 80), layout='constrained')
+    ts_len = explan_res[0].shape[1]
+    lbls = [""] * ts_len
+    for j, _ in enumerate(lbls):
+        if j % 5 == 0:
+            lbls[j] = str(j)
+    for i in range(15):
+        axis[i // 2, i % 2].plot(list(range(0, ts_len)), explan_res[0][:, :, i].flatten(), color='r',
+                                 label='counterfactual')
+        axis[i // 2, i % 2].plot(list(range(0, ts_len)), test_item[:, :, i].flatten(), color='b', label='original')
+        axis[i // 2, i % 2].set_title(f"Feature {feature_names[i]}")
+        axis[i // 2, i % 2].set_xticks(list(range(0, ts_len)), labels=lbls)
+    figure.savefig(f"example_overlap_item_{test_idx}.png")
+
+
+def plot_original_line_with_vals(test_item, explan_res, feature_names, test_idx):
+    figure, axis = plt.subplots(8, 2, figsize=(10, 80), layout='constrained')
+    ts_len = explan_res.shape[0]
+    lbls = [""] * ts_len
+    for j, _ in enumerate(lbls):
+        if j % 5 == 0:
+            lbls[j] = str(j)
+    for i in range(15):
+        axis[i // 2, i % 2].bar(list(range(0, ts_len)), explan_res[:, i].flatten(), color='r',
+                                 label='counterfactual')
+        axis[i // 2, i % 2].plot(list(range(0, ts_len)), test_item[:, :, i].flatten(), color='b', label='original')
+        axis[i // 2, i % 2].set_title(f"Feature {feature_names[i]}")
+        axis[i // 2, i % 2].set_xticks(list(range(0, ts_len)), labels=lbls)
+    figure.savefig(f"example_overlap_item_{test_idx}.png")
