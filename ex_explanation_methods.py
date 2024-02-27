@@ -9,6 +9,7 @@ from TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
 from TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
 from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
 
+import ex_dataset
 from analysis import plot_original_overlap_counterfactual, plot_original_line_with_vals
 #from timeshap.explainer import calc_local_report, local_event, local_pruning, local_feat, TimeShapKernel
 from util import heat_map
@@ -22,6 +23,8 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
+from anchor import utils
+from anchor import anchor_tabular
 
 
 class modelwrapper():
@@ -465,18 +468,55 @@ def do_Anchors(model, config, train_pd_x, test_pd_x, window_len=1, feature_names
     tic = timeit.default_timer()
     ts_phi_1 = np.zeros((len(test_data),test_data.shape[1], test_data.shape[2]))
     for i in range(len(test_data)):
-        gtw = StationaryWindowSHAP(wrapped_model, window_len, B_ts=background_data, test_ts=test_data[i:i+1], model_type=model_type)
+        #gtw = StationaryWindowSHAP(wrapped_model, window_len, B_ts=background_data, test_ts=test_data[i:i+1], model_type=model_type)
+        #gtw.explainer = shap.KernelExplainer(gtw.wraper_predict, gtw.background_data)
+        #shap_values = gtw.explainer.shap_values(gtw.test_data)
+        #shap_values = np.array(shap_values)
 
-        gtw.explainer = shap.KernelExplainer(gtw.wraper_predict, gtw.background_data)
-        shap_values = gtw.explainer.shap_values(gtw.test_data)
-        shap_values = np.array(shap_values)
+
+        flat_x = train_x.reshape([-1] + [np.prod(train_x.shape[1:])])
+        ex_dataset.preinit_feats
+        #flat_feature_idx_name = {i:name for i,name in enumerate(ex_dataset.preinit_feats.keys())}
+        flat_cat_name = {}
+        feat_names = []
+        cat_dict = {}
+        for i in range(flat_x.shape[1]):
+            flat_loc = i%train_x.shape[-1]
+            which_stack = i//train_x.shape[-1]
+            name = list(ex_dataset.preinit_feats.keys())[flat_loc]
+
+            flat_feat_name = name + f"_{which_stack}"
+            feat_names.append(flat_feat_name)
+            if name in config['categorical_features']:
+                cat_dict[i] = flat_feat_name
+
+        explainer = anchor_tabular.AnchorTabularExplainer(
+            ["Passed","Survived"],
+            feat_names,
+            flat_x,
+            cat_dict
+        )
+
+        test_item = np.expand_dims(test_data.flatten(),0)
+        model = model.cpu()
+        test_out = model(torch.from_numpy(test_data).to(torch.float32))
+        torch_item = torch.from_numpy(test_data).to(torch.float32)
+        #print('Prediction: ', explainer.class_names[model.predict(dataset.test[idx].reshape(1, -1))[0]])
+        pred_label = torch.argmax(test_out).item()
+        exp = explainer.explain_instance(test_item, model.forward, threshold=0.95, desired_label=pred_label, tau=0.85, stop_on_first=True)
+
+        print(exp)
+
+        print('Anchor: %s' % (' AND '.join(exp.names())))
+        print('Precision: %.2f' % exp.precision())
+        print('Coverage: %.2f' % exp.coverage())
 
         #stretch shapleys over windows
         #n_repeats = test_data.shape[1] // window_len
 
         #sv = np.repeat(shap_values.flatten(), window_len, axis=0)
-        sv = np.repeat(shap_values.flatten().reshape((-1, gtw.num_window)), window_len, axis=1)
-        saved_svs.append(sv)
+        # sv = np.repeat(shap_values.flatten().reshape((-1, gtw.num_window)), window_len, axis=1)
+        # saved_svs.append(sv)
 
         for var_i, var_name in enumerate(feature_names):
             #heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i+1].flatten(), shap_values=sv, var_name='Observed', plot_type='bar')

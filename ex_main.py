@@ -173,18 +173,18 @@ def main():
                 print(f"\n--FAILED-- in NUNCF! {e}")
 
         if "ANCH" in methods_enabled:
-            try:
-                print(f"Running Anchors...")
-                anchors_start = time.time()
-                res1 = do_Anchors(model, configuration, train_x, test_x, feature_names=ft, wrap_model=do_wrapping_of_model,
-                              model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
-                anchors_end = time.time()
-                anchors_res.append(res1)
-                pickel_results(anchors_res, f"pickel_results/anchors_results_{i}.pkl")
+            # try:
+            print(f"Running Anchors...")
+            anchors_start = time.time()
+            res1 = do_Anchors(model, configuration, train_x, test_x, feature_names=ft, wrap_model=do_wrapping_of_model,
+                          model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
+            anchors_end = time.time()
+            anchors_res.append(res1)
+            pickel_results(anchors_res, f"pickel_results/anchors_results_{i}.pkl")
 
-                print(f"Anchors runtime: {anchors_end - windowshap_start} ")
-            except Exception as e:
-                print(f"\n--FAILED-- in Anchors! {e}")
+            print(f"Anchors runtime: {anchors_end - windowshap_start} ")
+            # except Exception as e:
+            #     print(f"\n--FAILED-- in Anchors! {e}")
 
     run_analysis(model, test_x)
 
