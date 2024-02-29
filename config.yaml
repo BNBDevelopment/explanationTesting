@@ -19,7 +19,7 @@ model_name: "LSTM_mine"
 mimic_data_path: "./data/in-hospital-mortality/"
 datadir: "./data/my_mimic/"
 
-data_filename: "_mine"
+data_suffix: "_allData.pkl"
 
 model_n_layers: 2
 model_dropout: 0.3
@@ -28,9 +28,20 @@ model_bidirectional: True
 model_hdim: 16
 load_model_path: "_saved_models/LSTM_mine_epoch31_aucroc0.82408.pt"
 
-load_model: True
-load_data: True
 merge_time_size: 1.0
 input_concat_w_mask: False
 data_preproc: None
 hours_to_eval: 48.0
+
+load_model: True
+load_data: True
+
+model_class: benchmark_lstm
+model_type: lstm
+explanation_methods:
+  n_background_data: 1000
+  test_idxs:
+  window_shap:
+    window_len: 1
+    wrap_model: True
+    num_background: 1

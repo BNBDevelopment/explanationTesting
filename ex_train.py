@@ -44,7 +44,7 @@ def model_forward(model, config_dict, loss_fn, x, y):
     return output, loss
 
 def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
-    print("Status - Begining model training")
+    print("STATUS - Begining model training")
     n_epochs = config_dict['n_epochs']
     lr = config_dict['lr']
     batch_sz = config_dict['batch_size']

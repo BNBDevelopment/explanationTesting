@@ -22,7 +22,7 @@ def basic_model(n_feats, n_classes):
 
 
 
-def select_model(model_type, config):
+def select_model(config):
     num_classes = config['num_classes']
     num_layers = config['model_n_layers']
     dropout = config['model_dropout']
@@ -39,11 +39,12 @@ def select_model(model_type, config):
         else:
             num_features = config['num_features']
 
-    if model_type == "basic":
+    model_class = config["model_class"]
+    if model_class == "basic":
         return basic_model(n_feats=num_features, n_classes=num_classes)
-    elif model_type == "benchmark_lstm":
+    elif model_class == "benchmark_lstm":
         return BasicLSTM(n_feats=num_features, n_classes=num_classes, hidden_size=hidden_size, num_layers=num_layers, bias=bias, dropout=dropout, bidirectional=bidirectional)
-    elif model_type == "channelwise_lstm":
+    elif model_class == "channelwise_lstm":
         return ChannelWiseLSTM(n_feats=num_features, n_classes=num_classes, hidden_size=hidden_size, num_layers=num_layers, bias=bias, dropout=dropout, bidirectional=bidirectional)
 
 
