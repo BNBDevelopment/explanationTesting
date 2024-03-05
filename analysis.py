@@ -190,37 +190,36 @@ PREPROCESSES = {'comte': [None],
 
 
 def load_analysis_files(directory, item_categories=[]):
-    list_of_pickels = os.listdir(directory)
-    #list_of_pickels.sort()
-    analysis_items = {x:[] for x in item_categories}
+    for cat in item_categories:
+        list_of_pickels = os.listdir(directory + cat)
+        #list_of_pickels.sort()
+        #analysis_items = {x:[] for x in item_categories}
 
-    for filename in list_of_pickels:
-        f_type = filename.split("_")
+        for foldername in list_of_pickels:
+            f_type = foldername.split("_")
 
-        item_num = f_type[-1].split('.')[0]
-        try:
-            item_num = int(item_num)//10
-        except:
-            item_num = 0
-
-        if f_type[0] in ['time', 'window']:
-            f_type = "_".join(f_type[0:2])
-        else:
-            f_type = f_type[0]
+            item_num = f_type[-1].split('.')[0].replace("Item", "")
+            try:
+                item_num = int(item_num)//10
+            except:
+                item_num = 0
 
 
 
+        temp_path = directory + cat + "/" + foldername
+        temp_files = os.listdir(temp_path)
+        for file in temp_files:
+            if file[-4:] == ".pkl":
+                temp_f = open(temp_path + "/" + file, "rb")
+                res_objects = pickle.load(temp_f)
+                temp_f.close()
 
-        temp_f = open(directory + filename, 'rb')
-        res_objects = pickle.load(temp_f)
-        temp_f.close()
+                if item_num >= len(res_objects):
+                    last_res = res_objects[-1]
+                else:
+                    last_res = res_objects[item_num]
 
-        if item_num >= len(res_objects):
-            last_res = res_objects[-1]
-        else:
-            last_res = res_objects[item_num]
-
-        analysis_items[f_type].append(tuple([last_res, item_num]))
+                analysis_items[f_type].append(tuple([last_res, item_num]))
 
     return analysis_items
 
@@ -521,33 +520,62 @@ def run_analysis(model, orig_inputs):
     # plt.show()
     # plt.savefig("combined_by_feature.png")
 
-def plot_original_overlap_counterfactual(test_item, explan_res, feature_names, test_idx):
-    figure, axis = plt.subplots(8, 2, figsize=(10, 80), layout='constrained')
+def plot_original_overlap_counterfactual(test_item, explan_res, feature_names, explanation_output_folder, image_name_prefix="", n_plots_horiz=3):
+    n_plots_vert = (len(feature_names) // n_plots_horiz) + 1
+    figure, axis = plt.subplots(n_plots_vert, n_plots_horiz, figsize=(10, 10), layout='constrained')
     ts_len = explan_res[0].shape[1]
-    lbls = [""] * ts_len
-    for j, _ in enumerate(lbls):
+    time_tick_lbls = [""] * ts_len
+    for j, _ in enumerate(time_tick_lbls):
         if j % 5 == 0:
-            lbls[j] = str(j)
-    for i in range(15):
-        axis[i // 2, i % 2].plot(list(range(0, ts_len)), explan_res[0][:, :, i].flatten(), color='r',
-                                 label='counterfactual')
-        axis[i // 2, i % 2].plot(list(range(0, ts_len)), test_item[:, :, i].flatten(), color='b', label='original')
-        axis[i // 2, i % 2].set_title(f"Feature {feature_names[i]}")
-        axis[i // 2, i % 2].set_xticks(list(range(0, ts_len)), labels=lbls)
-    figure.savefig(f"example_overlap_item_{test_idx}.png")
+            time_tick_lbls[j] = str(j)
+    for i in range(len(feature_names)):
+        axis[i // n_plots_horiz, i % n_plots_horiz].plot(list(range(0, ts_len)), explan_res[0][:, :, i].flatten(), color='r', label='counterfactual')
+        axis[i // n_plots_horiz, i % n_plots_horiz].plot(list(range(0, ts_len)), test_item[:, :, i].flatten(), color='b', label='original')
+        axis[i // n_plots_horiz, i % n_plots_horiz].set_title(f"{feature_names[i]}")
+        axis[i // n_plots_horiz, i % n_plots_horiz].set_xticks(list(range(0, ts_len)), labels=time_tick_lbls)
+    figure.savefig(f"{explanation_output_folder}{image_name_prefix}allFeatures.png")
+    plt.close()
 
 
-def plot_original_line_with_vals(test_item, explan_res, feature_names, test_idx):
-    figure, axis = plt.subplots(8, 2, figsize=(10, 80), layout='constrained')
+def plot_original_line_with_vals(test_item, explan_res, feature_names, explanation_output_folder, image_name_prefix="", n_plots_horiz=3):
+    n_plots_vert = (len(feature_names) // n_plots_horiz) + 1
+    figure, axis = plt.subplots(n_plots_vert, n_plots_horiz, figsize=(10, 10), layout='constrained')
     ts_len = explan_res.shape[0]
-    lbls = [""] * ts_len
-    for j, _ in enumerate(lbls):
+    time_tick_lbls = [""] * ts_len
+    for j, _ in enumerate(time_tick_lbls):
         if j % 5 == 0:
-            lbls[j] = str(j)
-    for i in range(15):
-        axis[i // 2, i % 2].bar(list(range(0, ts_len)), explan_res[:, i].flatten(), color='r',
-                                 label='counterfactual')
-        axis[i // 2, i % 2].plot(list(range(0, ts_len)), test_item[:, :, i].flatten(), color='b', label='original')
-        axis[i // 2, i % 2].set_title(f"Feature {feature_names[i]}")
-        axis[i // 2, i % 2].set_xticks(list(range(0, ts_len)), labels=lbls)
-    figure.savefig(f"example_overlap_item_{test_idx}.png")
+            time_tick_lbls[j] = str(j)
+    for i in range(len(feature_names)):
+        feature_name = feature_names[i]
+        axis[i // n_plots_horiz, i % n_plots_horiz].bar(list(range(0, ts_len)), explan_res[:, i].flatten(), color='r', label='Counterfactual')
+        axis[i // n_plots_horiz, i % n_plots_horiz].plot(list(range(0, ts_len)), test_item['x'][:, :, i].flatten(), color='b', label='original')
+        axis[i // n_plots_horiz, i % n_plots_horiz].set_title(f"{feature_name}")
+        axis[i // n_plots_horiz, i % n_plots_horiz].set_xticks(list(range(0, ts_len)), labels=time_tick_lbls)
+    figure.savefig(f"{explanation_output_folder}{image_name_prefix}allFeatures.png")
+    plt.close()
+
+
+
+if __name__ == "__main__":
+    directory = '_saved_models/LSTM_mine/'
+    item_categories = ['Anchors', 'COMTE', 'GradCAM' , 'NUNCF', 'WindowSHAP']
+    replication_size = 10
+
+    data = load_analysis_files(directory, item_categories)
+
+    ctg_batch_res = {x:[] for x in item_categories}
+    for catg in item_categories:
+        catg_data = data[catg]
+
+        for i in range(0, len(catg_data)//replication_size):
+            start = i * replication_size
+            end = (i+1) * replication_size
+            same_sample_batch = catg_data[start:end]
+
+            proc_fn = PROCESSES[catg][0]
+            pre_fn = PREPROCESSES[catg][0]
+            batch_results = proc_fn(same_sample_batch, model=model, orig_inputs=orig_inputs, preprocess=pre_fn)
+            ctg_batch_res[catg].append(batch_results)
+
+
+    all_res = process_perBatch_results(ctg_batch_res)

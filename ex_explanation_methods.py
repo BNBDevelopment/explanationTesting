@@ -21,45 +21,6 @@ import matplotlib.pyplot as plt
 from anchor import anchor_tabular
 
 
-class modelwrapper():
-    def __init__(self, model, n_classes=None, model_flag=None):
-        super().__init__()
-        self.model = model
-        self.column_names = ["x1"]
-        if n_classes is None:
-            self.classes_ = np.array([x for x in range(model.n_classes)])
-        else:
-            self.classes_ = n_classes
-        self.model_flag = model_flag
-
-    def predict(self, x):
-        res = self.predict_proba(x)
-        pred = np.argmax(res, axis=-1)
-        return pred
-
-    def predict_proba(self, x):
-        if self.model_flag == "brits":
-            res = self.model.predict({"X":x})
-            return res['imputation']
-        else:
-            if issubclass(x.__class__, pd.DataFrame):
-                x = x.to_numpy()
-            x = torch.from_numpy(x).to(self.model.fc.bias.get_device()).to(torch.float32)
-
-            if x.size(0) > 128:
-                print("NOTICE: Batching for explanation methods activated...")
-                x_arr = torch.split(x, x.size(0)//(x.size(0)//64), dim=0)
-                reses = []
-                for x in x_arr:
-                    res = self.model(x)
-                    reses.append(res.detach().cpu().numpy())
-                res = np.concatenate(reses, axis=0)
-            else:
-                res = self.model(x)
-                res = res.detach().cpu().numpy()
-            return res
-
-
 def do_comte(model, train_x, train_y, test_x, test_y, test_id_to_explain=0):
     # will not work, requires a deprecated package (MLRose) that depends on a deprecated scikit-learn version (sklearn, no longer available)
 
@@ -119,115 +80,82 @@ def do_comte(model, train_x, train_y, test_x, test_y, test_id_to_explain=0):
 
 
 #################################################################################
-#WindowSHAP:
-
-class brits_wrapper():
-    def __init__(self, model):
-        self.model = model
-    def predict(self, x):
-        res = self.model.predict(x)
-        return res['imputation']
 
 
-def getConfig_WindowSHAP(config):
-    return_dict = {}
-    relevant_config_section = config['explanation_methods']['window_shap']
+def do_WindowSHAP(explanation_config, sample_to_explain, explanation_output_folder):
+    background_data = explanation_config["background_data"]
+    model = explanation_config["model"]
+    model_type = explanation_config["model_type"]
+    feature_names = explanation_config["feature_names"]
+    window_length = explanation_config["window_length"]
 
-    return_dict['window_len'] = relevant_config_section['window_len']
-    return_dict['wrap_model'] = relevant_config_section['wrap_model']
-    return_dict['model_type'] = config['model_type']
-    return_dict['num_background'] = relevant_config_section['num_background']
-    return_dict['test_idx'] = relevant_config_section['test_idx']
-    return_dict['num_test_samples'] = relevant_config_section['num_test_samples']
+    if sample_to_explain['x'].shape[1] % window_length != 0:
+        raise NotImplementedError(f"FATAL - time series length {sample_to_explain['x'].shape[1]} must be divisible by the window size {window_length}")
 
-def do_WindowSHAP(model, config, train_x, test_x, window_len=1, feature_names = [], model_type='lstm', num_background=50, test_idx=28, num_test_samples=1):
-    saved_svs = []
-    getConfig_WindowSHAP
+    gtw = StationaryWindowSHAP(model, window_length, B_ts=background_data['x'], test_ts=sample_to_explain['x'], model_type=model_type)
 
-    img_save_path = config['save_model_path'] + config['model_name'] + "/windowshap/"
-    path = pathlib.Path(img_save_path)
-    path.mkdir(parents=True, exist_ok=True)
+    gtw.explainer = shap.KernelExplainer(gtw.wraper_predict, gtw.background_data)
+    shap_values = gtw.explainer.shap_values(gtw.test_data)
+    shap_values = np.array(shap_values)
 
-    background_start = random.randint(0, len(train_x) - num_background)
-    background_data = train_x[background_start:background_start+num_background]
-    test_data = test_x[test_idx:test_idx + num_test_samples]
+    sv = np.repeat(shap_values.flatten().reshape((-1, gtw.num_window)), window_length, axis=1)
 
-    for i in range(len(test_data)):
-        gtw = StationaryWindowSHAP(model, window_len, B_ts=background_data, test_ts=test_data[i:i+1], model_type=model_type)
+    # for var_i, var_name in enumerate(feature_names):
+    #     heat_map(start=0, stop=sample_to_explain['x'].shape[1], x=sample_to_explain['x'][:,:, var_i].flatten(), shap_values=sv[var_i].flatten(), var_name=var_name, plot_type='bar', image_save_path=explanation_output_folder)
 
-        gtw.explainer = shap.KernelExplainer(gtw.wraper_predict, gtw.background_data)
-        shap_values = gtw.explainer.shap_values(gtw.test_data)
-        shap_values = np.array(shap_values)
-
-        sv = np.repeat(shap_values.flatten().reshape((-1, gtw.num_window)), window_len, axis=1)
-        saved_svs.append(sv)
-
-        for var_i, var_name in enumerate(feature_names):
-            heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i + 1, :, var_i].flatten(),
-                     shap_values=sv[var_i].flatten(), var_name=var_name, plot_type='bar', image_save_path=img_save_path)
-    return saved_svs
+    plot_original_line_with_vals(sample_to_explain, sv, feature_names, explanation_output_folder)
+    return sv
 
 
 
 
-def do_GradCAM(model, configuration, train_x, test_x, test_y, feature_names, wrap_model, model_type, num_background, test_idx,
-               num_test_samples):
+def do_GradCAM(explanation_config, sample_to_explain, explanation_output_folder):
+    model = explanation_config["model"]
+    feature_names = explanation_config["feature_names"]
+    cur_device = explanation_config["experiment_config"]["device"]
 
-    eval_approach = 'GRAD'
-    cur_device = configuration['device']
-    what_is_second_dim = 'time'
+    eval_approach = explanation_config["eval_approach"]
+    what_is_second_dim = explanation_config["what_is_second_dim"]
+    n_timesteps = explanation_config["n_timesteps"]
+    n_features = explanation_config["n_features"]
+    unwrapped_model = model.model
 
-    explainer_method = TSR(model, NumTimeSteps=train_x.shape[-2], NumFeatures =train_x.shape[-1], method=eval_approach, mode=what_is_second_dim, device=cur_device)
+    explainer_method = TSR(unwrapped_model, NumTimeSteps=n_timesteps, NumFeatures=n_features, method=eval_approach, mode=what_is_second_dim, device=cur_device)
 
-    test_item = np.array([test_x[test_idx, :, :]])
-    test_labl = int(test_y[test_idx])
+    exp = explainer_method.explain(sample_to_explain['x'], labels=sample_to_explain['y'], TSR=True)
 
-    exp = explainer_method.explain(test_item, labels=test_labl, TSR=True)
-
-    img_save_path = configuration['save_model_path'] + configuration['model_name'] + "/gradcam/"
-    path = pathlib.Path(img_save_path)
-    path.mkdir(parents=True, exist_ok=True)
-
-    explainer_method.plot(np.array([test_x[test_idx, :, :]]), exp, figsize=(12.8, 9.6), heatmap=False, save=img_save_path + f"item_{test_idx}_feature_gradcam_result.png")
-    explainer_method.plot(np.array([np.sum(test_x[test_idx, :, :], axis=1)]), exp, figsize=(12.8, 9.6), heatmap=False, save=img_save_path + f"item_{test_idx}_timepointSum_gradcam_result.png")
-
-    plot_original_line_with_vals(test_item, exp, feature_names, test_idx)
+    plot_original_line_with_vals(sample_to_explain, exp, feature_names, explanation_output_folder)
     return exp
 
 
 
 
-def do_COMTE(model, configuration, train_x, test_x, test_y, feature_names, wrap_model, model_type, num_background, test_idx,
-               num_test_samples):
-    data = (test_x, test_y.squeeze())
-    what_is_second_dim = 'time'
+def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
+    model = explanation_config["model"]
+    feature_names = explanation_config["feature_names"]
+    what_is_second_dim = explanation_config["what_is_second_dim"]
+    background_data = explanation_config["background_data"]
 
-    explainer_method = COMTECF(model.to('cpu'), data, backend="PYT", mode=what_is_second_dim, method='opt', number_distractors=2, max_attempts=1000, max_iter=1000,silent=False)
+    unwrapped_model = model.model
 
-    test_item = np.array([test_x[test_idx, :, :]])
-    actual_model_label = model(torch.from_numpy(test_item).to(torch.float32)).argmax(-1).item()
+    comte_formatted_data = tuple([background_data['x'], background_data['y'].squeeze()])
+    explainer_method = COMTECF(unwrapped_model.to('cpu'), comte_formatted_data, backend="PYT", mode=what_is_second_dim, method='opt', number_distractors=2, max_attempts=1000, max_iter=1000,silent=False)
+    actual_model_label = unwrapped_model(torch.from_numpy(sample_to_explain['x']).to(torch.float32)).argmax(-1).item()
+    exp = explainer_method.explain(sample_to_explain['x'], orig_class=actual_model_label, target=1-actual_model_label)
 
-    exp = explainer_method.explain(test_item, orig_class=actual_model_label, target=1-actual_model_label)
-
-    img_save_path = configuration['save_model_path'] + configuration['model_name'] + "/comte/"
-    path = pathlib.Path(img_save_path)
-    path.mkdir(parents=True, exist_ok=True)
-
-    explainer_method.plot(original=test_item, org_label=actual_model_label, exp=exp[0], exp_label=exp[1], figsize=(12.8, 9.6), save_fig=img_save_path + f"item_{test_idx}_result.png")
-
-    plot_original_overlap_counterfactual(test_item, exp, feature_names, test_idx)
-
+    plot_original_overlap_counterfactual(sample_to_explain['x'], exp, feature_names, explanation_output_folder)
     return exp
 
 
 
 
-def do_NUNCF(model, configuration, train_x, test_x, test_y, feature_names, wrap_model, model_type, num_background, test_idx,
-               num_test_samples):
-    data = (test_x, test_y)
-
-    what_is_second_dim = 'time'
-
+def do_NUNCF(explanation_config, sample_to_explain, explanation_output_folder):
+    model = explanation_config["model"]
+    feature_names = explanation_config["feature_names"]
+    what_is_second_dim = explanation_config["what_is_second_dim"]
+    background_data = explanation_config["background_data"]
+    unwrapped_model = model.model
+    comte_formatted_data = tuple([background_data['x'], background_data['y'].squeeze()])
     mt = 'dtw_bary_center'
 
     class nuncf_wrapper(torch.nn.Module):
@@ -237,80 +165,45 @@ def do_NUNCF(model, configuration, train_x, test_x, test_y, feature_names, wrap_
         def forward(self, x):
             return self.model(x)
 
-    explainer_method = NativeGuideCF(nuncf_wrapper(model.to('cpu')), data, backend="PYT", mode=what_is_second_dim, method=mt, distance_measure="dtw", n_neighbors=1, max_iter=500)
+    explainer_method = NativeGuideCF(nuncf_wrapper(unwrapped_model.to('cpu')), comte_formatted_data, backend="PYT", mode=what_is_second_dim, method=mt, distance_measure="dtw", n_neighbors=1, max_iter=500)
 
-    test_item = np.array([test_x[test_idx, :, :]])
-    test_labl = int(test_y[test_idx])
-
-    exp = explainer_method.explain(x=test_item, y=test_labl)
-
-    img_save_path = configuration['save_model_path'] + configuration['model_name'] + "/nuncf/"
-    path = pathlib.Path(img_save_path)
-    path.mkdir(parents=True, exist_ok=True)
-
-    explainer_method.plot(original=test_item, org_label=test_labl, exp=exp[0], exp_label=exp[1], figsize=(12.8, 9.6), save_fig=img_save_path + f"item_{test_idx}_{mt}_result.png")
-
+    exp = explainer_method.explain(x=sample_to_explain['x'], y=sample_to_explain['y'])
+    plot_original_overlap_counterfactual(sample_to_explain['x'], exp, feature_names, explanation_output_folder)
     return exp
 
 
-def do_Anchors(model, config, train_pd_x, test_pd_x, window_len=1, feature_names = [], wrap_model=True, model_type='lstm', num_background=50, test_idx=28, num_test_samples=1):
-    if issubclass(train_pd_x.__class__, pd.DataFrame):
-        train_x = train_pd_x.to_numpy()
-        train_x = np.expand_dims(train_x, -1)
-    else:
-        train_x = train_pd_x
+def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder):
+    model = explanation_config["model"]
+    feature_names = explanation_config["feature_names"]
+    background_data = explanation_config["background_data"]
+    config = explanation_config["experiment_config"]
 
-    if issubclass(test_pd_x.__class__, pd.DataFrame):
-        test_x = test_pd_x.to_numpy()
-        test_x = np.expand_dims(test_x, -1)
-    else:
-        test_x = test_pd_x
+    flat_background = background_data['x'].reshape([-1] + [np.prod(background_data['x'].shape[1:])])
+    feat_names = []
+    cat_dict = {}
+    for i in range(flat_background.shape[1]):
+        flat_loc = i%sample_to_explain['x'].shape[-1]
+        which_stack = i//sample_to_explain['x'].shape[-1]
+        name = feature_names[flat_loc]
 
-    saved_svs = []
+        flat_feat_name = name + f"_{which_stack}"
+        feat_names.append(flat_feat_name)
+        if name in config['categorical_features']:
+            cat_dict[i] = flat_feat_name
 
-    img_save_path = config['save_model_path'] + config['model_name'] + "/windowshap/"
-    path = pathlib.Path(img_save_path)
-    path.mkdir(parents=True, exist_ok=True)
+    explainer = anchor_tabular.AnchorTabularExplainer(
+        ["Passed","Survived"],
+        feat_names,
+        flat_background,
+        cat_dict
+    )
 
-    background_start = random.randint(0, len(train_x) - num_background)
-    test_data = test_x[test_idx:test_idx + num_test_samples]
+    test_out = model.model(torch.from_numpy(sample_to_explain['x']).to(torch.float32).to(config['device']))
+    pred_label = torch.argmax(test_out).item()
+    exp = explainer.explain_instance(sample_to_explain['x'].flatten(), model.predict, threshold=0.95, desired_label=pred_label, tau=0.1, stop_on_first=True)
 
-    for i in range(len(test_data)):
-        flat_x = train_x.reshape([-1] + [np.prod(train_x.shape[1:])])
-        ex_dataset.HARDCODED_MIMICIII_INITIAL_FEATURES
-        feat_names = []
-        cat_dict = {}
-        for i in range(flat_x.shape[1]):
-            flat_loc = i%train_x.shape[-1]
-            which_stack = i//train_x.shape[-1]
-            name = list(ex_dataset.HARDCODED_MIMICIII_INITIAL_FEATURES.keys())[flat_loc]
-
-            flat_feat_name = name + f"_{which_stack}"
-            feat_names.append(flat_feat_name)
-            if name in config['categorical_features']:
-                cat_dict[i] = flat_feat_name
-
-        explainer = anchor_tabular.AnchorTabularExplainer(
-            ["Passed","Survived"],
-            feat_names,
-            flat_x,
-            cat_dict
-        )
-
-        test_item = np.expand_dims(test_data.flatten(),0)
-        model = model.cpu()
-        test_out = model(torch.from_numpy(test_data).to(torch.float32))
-        pred_label = torch.argmax(test_out).item()
-        exp = explainer.explain_instance(test_item, model.forward, threshold=0.95, desired_label=pred_label, tau=0.85, stop_on_first=True)
-
-        print(exp)
-
-        print('Anchor: %s' % (' AND '.join(exp.names())))
-        print('Precision: %.2f' % exp.precision())
-        print('Coverage: %.2f' % exp.coverage())
-
-        for var_i, var_name in enumerate(feature_names):
-            #heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i+1].flatten(), shap_values=sv, var_name='Observed', plot_type='bar')
-            heat_map(start=0, stop=test_data.shape[1], x=test_data[i:i + 1, :, var_i].flatten(),
-                     shap_values=sv[var_i].flatten(), var_name=var_name, plot_type='bar', image_save_path=img_save_path)
-    return saved_svs
+    print(exp)
+    print('Anchor: %s' % (' AND '.join(exp.names())))
+    print('Precision: %.2f' % exp.precision())
+    print('Coverage: %.2f' % exp.coverage())
+    return exp.exp_map

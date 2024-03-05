@@ -246,7 +246,7 @@ def load_file_data(config, data_type="train"):
     data_package_path = datadir + data_type+data_filename
     if config['load_data']:
         if os.path.isfile(data_package_path):
-            print("STATUS -Loading MIMIC-III data from pre-built files")
+            print("STATUS - Loading MIMIC-III data from pre-built files")
             data_dict = load_data(data_package_path)
             data_x = data_dict['data_x']
             data_y = data_dict['data_y']

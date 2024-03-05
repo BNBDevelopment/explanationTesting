@@ -1,0 +1,45 @@
+import numpy as np
+import pandas as pd
+import torch
+
+
+class ModelWrapper():
+    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256):
+        super().__init__()
+        self.model = model
+        self.column_names = ["x1"]
+        if n_classes is None:
+            self.classes_ = np.array([x for x in range(model.n_classes)])
+        else:
+            self.classes_ = n_classes
+        self.model_flag = model_flag
+        self.batch_size = batch_size
+
+    def predict(self, x):
+        res = self.predict_proba(x)
+        pred = np.argmax(res, axis=-1)
+        return pred
+
+    def predict_proba(self, x):
+        if issubclass(x.__class__, torch.Tensor):
+            x_input = x.to(self.model.fc.bias.get_device())
+        elif issubclass(x.__class__, pd.DataFrame):
+            x_input = x.to_numpy()
+            x_input = torch.from_numpy(x_input).to(self.model.fc.bias.get_device()).to(torch.float32)
+        elif issubclass(x.__class__, np.ndarray):
+            x_input = torch.from_numpy(x).to(self.model.fc.bias.get_device()).to(torch.float32)
+        else:
+            raise NotImplementedError(f"Input class type {x.__class__} not covered for wrapped model")
+
+        if x_input.size(0) > 128:
+            print("NOTICE: Batching for explanation methods activated...")
+            x_arr = torch.split(x_input, x_input.size(0)//(x_input.size(0)//self.batch_size), dim=0)
+            reses = []
+            for x_batch in x_arr:
+                res = self.model(x_batch)
+                reses.append(res.detach().cpu().numpy())
+            res = np.concatenate(reses, axis=0)
+        else:
+            res = self.model(x_input)
+            res = res.detach().cpu().numpy()
+        return res
