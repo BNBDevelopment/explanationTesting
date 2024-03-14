@@ -67,9 +67,11 @@ class NativeGuideCF(CF):
         if mode == "time":
             # Parse test data into (1, feat, time):
             self.ts_length = test_x.shape[-2]
+            self.ts_feats = test_x.shape[-1]
             test_x = test_x.reshape(test_x.shape[0], test_x.shape[2], test_x.shape[1])
         elif mode == "feat":
             self.ts_length = test_x.shape[-1]
+            self.ts_feats = test_x.shape[-2]
 
         if backend == "PYT":
             self.remove_all_hooks(self.model)
@@ -141,10 +143,11 @@ class NativeGuideCF(CF):
         if len(y.shape) == 2:
             y = np.argmax(y, axis=1)
         ts_length = self.ts_length
+        ts_feats = self.ts_feats
         knn = KNeighborsTimeSeries(n_neighbors=n_neighbors, metric=distance)
-        knn.fit(x_train[list(np.where(y != predicted_label))].reshape(-1, ts_length, 1))
-        dist, ind = knn.kneighbors(query.reshape(1, ts_length, 1), return_distance=True)
-        x_train.reshape(-1, 1, ts_length)
+        knn.fit(x_train[list(np.where(y != predicted_label))].reshape(-1, ts_length, ts_feats))
+        dist, ind = knn.kneighbors(query.reshape(-1, ts_length, ts_feats), return_distance=True)
+        x_train.reshape(-1, ts_feats, ts_length)
         return dist[0], x_train[np.where(y != predicted_label)][ind[0]]
 
     def _native_guide_wrapper(self, query, predicted_label, distance, n_neighbors):

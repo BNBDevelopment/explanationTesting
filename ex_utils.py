@@ -16,9 +16,16 @@ class ModelWrapper():
         self.batch_size = batch_size
 
     def predict(self, x):
+        if len(x.shape) == 2:
+            x = x.reshape(-1, 48, 17)
         res = self.predict_proba(x)
         pred = np.argmax(res, axis=-1)
         return pred
+
+    def __call__(self, *args, **kwargs):
+        #temp = self.predict(args[0])
+        # return torch.from_numpy(temp).to(next(self.model.parameters()).device, torch.float32)
+        return self.model(args[0].unsqueeze(0)).squeeze()
 
     def predict_proba(self, x):
         if issubclass(x.__class__, torch.Tensor):

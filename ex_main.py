@@ -10,7 +10,7 @@ from yaml import CLoader
 
 import ex_dataset
 from analysis import run_analysis
-from ex_explanation_methods import do_WindowSHAP, do_comte, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors
+from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask
 from ex_models import V1Classifier, BasicLSTM, select_model
 from ex_train import train
 import traceback
@@ -101,22 +101,16 @@ def main():
     x_toExplain = test_x[to_explain_idxs]
     y_toExplain = test_y[to_explain_idxs]
 
-    #n_explanation_test = 100
-    # windowshap_res = []
-    # gradcam_res = []
-    # comte_res = []
-    # nuncaf_res = []
-
     methods_enabled = {
         "WindowSHAP": {"function": do_WindowSHAP, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        #"GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        "GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"CoMTE": {"function": do_COMTE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"NUNCF": {"function": do_NUNCF, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"Anchors": {"function": do_Anchors, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        "Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
     }
 
-
-    n_explns_per_method = 100
+    n_explns_per_method = 4
     n_explns_per_random_seed = 1
 
     explanation_config = {}
@@ -130,6 +124,27 @@ def main():
     explanation_config["what_is_second_dim"] = 'time'
     explanation_config["n_timesteps"] = x_toExplain.shape[1]
     explanation_config["n_features"] = x_toExplain.shape[2]
+
+    if configuration['gen_presentation_data']:
+        toexplain_predictions = ModelWrapper(model).predict(x_toExplain)
+        idx_pred1_true1 = np.argwhere(np.logical_and(toexplain_predictions == 1, y_toExplain.flatten() == 1))
+        idx_pred1_true0 = np.argwhere(np.logical_and(toexplain_predictions == 1, y_toExplain.flatten() == 0))
+        idx_pred0_true1 = np.argwhere(np.logical_and(toexplain_predictions == 0, y_toExplain.flatten() == 1))
+        idx_pred0_true0 = np.argwhere(np.logical_and(toexplain_predictions == 0, y_toExplain.flatten() == 0))
+
+        matching_data_subset_x = []
+        matching_data_subset_y = []
+        for i in range(configuration['presentation_examples_per_category']):
+            matching_data_subset_x.append(x_toExplain[idx_pred1_true1[i]])
+            matching_data_subset_y.append(y_toExplain[idx_pred1_true1[i]])
+            matching_data_subset_x.append(x_toExplain[idx_pred1_true0[i]])
+            matching_data_subset_y.append(y_toExplain[idx_pred1_true0[i]])
+            matching_data_subset_x.append(x_toExplain[idx_pred0_true1[i]])
+            matching_data_subset_y.append(y_toExplain[idx_pred0_true1[i]])
+            matching_data_subset_x.append(x_toExplain[idx_pred0_true0[i]])
+            matching_data_subset_y.append(y_toExplain[idx_pred0_true0[i]])
+        x_toExplain = np.stack(matching_data_subset_x).squeeze()
+        y_toExplain = np.reshape(np.array(matching_data_subset_y), (-1,1))
 
     plt.ioff()
     import matplotlib
@@ -156,6 +171,7 @@ def main():
                     generated_explanation = explanation_function(explanation_config, sample_to_explain, explanation_output_folder)
                     end_time = time.time()
                     time_seconds_taken = end_time-start_time
+                    print(f"Time Taken for {expl_method_name} is {time_seconds_taken}")
 
                     pickel_results(generated_explanation, f"{explanation_output_folder}explanation.pkl")
                     expl_information["result_store"]["explanations"].append(generated_explanation)
@@ -167,96 +183,16 @@ def main():
 
                     plt.close('all')
                 except Exception as e:
-                    print(f"EXCEPTION - Exception in {expl_method_name}\n\n")
-                    print(e)
-                    print(traceback.format_exc())
-                    print(f"\n\n")
+                    if configuration['throw_errors']:
+                        raise e
+                    else:
+                        print(f"EXCEPTION - Exception in {expl_method_name}\n\n")
+                        print(e)
+                        print(traceback.format_exc())
+                        print(f"\n\n")
 
     methods_enabled["configuration_with_data"] = explanation_config
     pickel_results(methods_enabled, f"{explanation_output_folder}../../all_explanations_data.pkl")
-
-    # for i in range(99, n_explanation_test):
-    #     to_test_idx = i//10
-    #     set_random_seed(i)
-    #
-    #     # # WindowSHAP
-    #     # if "WS" in methods_enabled:
-    #     #     try:
-    #     #         print(f"Running WindowSHAP...")
-    #     #         windowshap_start = time.time()
-    #     #         res1 = do_WindowSHAP(model, configuration, train_x, test_x, feature_names=feature_names, wrap_model=do_wrapping_of_model,
-    #     #                       model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
-    #     #         windowshap_end = time.time()
-    #     #         windowshap_res.append(res1)
-    #     #         pickel_results(windowshap_res, f"pickel_results/window_shap_results_{i}.pkl")
-    #     #
-    #     #         print(f"WindowShap runtime: {windowshap_end - windowshap_start} ")
-    #     #     except Exception as e:
-    #     #         print(f"\n--FAILED-- in WindowSHAP! {e}")
-    #     #
-    #     #
-    #     #
-    #     # # GradCAM
-    #     # if "GCAM" in methods_enabled:
-    #     #     try:
-    #     #         print(f"Running GCAM...")
-    #     #         gradcam_start = time.time()
-    #     #         res2 = do_GradCAM(model, configuration, train_x, test_x, test_y, feature_names=feature_names, wrap_model=do_wrapping_of_model,
-    #     #                        model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
-    #     #         gradcam_end = time.time()
-    #     #         gradcam_res.append(res2)
-    #     #         pickel_results(gradcam_res, f"pickel_results/gradcam_results_{i}.pkl")
-    #     #
-    #     #         print(f"GradCAM runtime: {gradcam_end - gradcam_start} ")
-    #     #     except Exception as e:
-    #     #         print(f"\n--FAILED-- in GradCAM! {e}")
-    #     #         raise ValueError
-    #
-    #     #COMTE
-    #     if "COMTE" in methods_enabled:
-    #         try:
-    #             print(f"Running COMTE...")
-    #             comte_start = time.time()
-    #             res3 = do_COMTE(model, configuration, train_x, test_x, test_y, feature_names=feature_names, wrap_model=do_wrapping_of_model,
-    #                            model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
-    #             comte_end = time.time()
-    #             comte_res.append(res3)
-    #             pickel_results(comte_res, f"pickel_results/comte_results_{i}.pkl")
-    #
-    #             print(f"COMTE runtime: {comte_end - comte_start} ")
-    #         except Exception as e:
-    #             raise e
-    #             print(f"\n--FAILED-- in CoMTE! {e}")
-    #
-    #     #NUNCF
-    #     if "NUNCF" in methods_enabled:
-    #         try:
-    #             print(f"Running NUNCF...")
-    #             nuncf_start = time.time()
-    #             res4 = do_NUNCF(model, configuration, train_x, test_x, test_y, feature_names=ft, wrap_model=do_wrapping_of_model,
-    #                            model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
-    #             nuncf_end = time.time()
-    #             nuncaf_res.append(res4)
-    #             pickel_results(nuncaf_res, f"pickel_results/nuncaf_results_{i}.pkl")
-    #
-    #             print(f"NUNCF runtime: {nuncf_end - nuncf_start} ")
-    #         except Exception as e:
-    #             raise e
-    #             print(f"\n--FAILED-- in NUNCF! {e}")
-    #
-    #     if "ANCH" in methods_enabled:
-    #         # try:
-    #         print(f"Running Anchors...")
-    #         anchors_start = time.time()
-    #         res1 = do_Anchors(model, configuration, train_x, test_x, feature_names=ft, wrap_model=do_wrapping_of_model,
-    #                       model_type=type_of_wrapped_submodel, num_background=50, test_idx=to_test_idx, num_test_samples=1)
-    #         anchors_end = time.time()
-    #         anchors_res.append(res1)
-    #         pickel_results(anchors_res, f"pickel_results/anchors_results_{i}.pkl")
-    #
-    #         print(f"Anchors runtime: {anchors_end - windowshap_start} ")
-    #         # except Exception as e:
-    #         #     print(f"\n--FAILED-- in Anchors! {e}")
 
     run_analysis(model, test_x)
 

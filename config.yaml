@@ -15,7 +15,7 @@ cutoff_seq_len: 76
 device: cuda
 
 save_model_path: "_saved_models/"
-model_name: "LSTM_mine"
+model_name: "PresentationTesting"
 mimic_data_path: "./data/in-hospital-mortality/"
 datadir: "./data/my_mimic/"
 
@@ -39,9 +39,13 @@ load_data: True
 model_class: benchmark_lstm
 model_type: lstm
 explanation_methods:
-  n_background_data: 1000
+  n_background_data: 2000
   test_idxs:
   window_shap:
     window_len: 1
     wrap_model: True
     num_background: 1
+
+throw_errors: False
+gen_presentation_data: True
+presentation_examples_per_category: 1

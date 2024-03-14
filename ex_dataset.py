@@ -9,8 +9,6 @@ import torch
 import numpy as np
 import re
 
-from mimic3models.preprocessing import Normalizer, Discretizer
-
 HARDCODED_MIMICIII_INITIAL_FEATURES = {
     "Capillary refill rate": 0.0,
     "Diastolic blood pressure": 59.0,
@@ -196,6 +194,7 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
             used_seq_lens.append(train_data.shape[1])
 
     if config['data_preproc'] == 'mimic3benchmark':
+        from mimic3models.preprocessing import Normalizer, Discretizer
         discretizer = Discretizer(timestep=float(config['merge_time_size']),
                                   store_masks=True,
                                   impute_strategy='previous',
