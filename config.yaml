@@ -2,11 +2,12 @@ categorical_features:
   - "Glascow coma scale eye opening"
   - "Glascow coma scale motor response"
   - "Glascow coma scale verbal response"
+  - "Glascow coma scale total"
 excludes:
   - "Hours"
 
-n_epochs: 50
-lr: 0.001
+n_epochs: 200
+lr: 0.0002
 loss_type: "BCE"
 
 batch_size: 32
@@ -21,12 +22,12 @@ datadir: "./data/my_mimic/"
 
 data_suffix: "_allData.pkl"
 
-model_n_layers: 2
+model_n_layers: 1
 model_dropout: 0.3
 model_bias: True
 model_bidirectional: True
-model_hdim: 16
-load_model_path: "_saved_models/LSTM_mine_epoch31_aucroc0.82408.pt"
+model_hdim: 32
+
 
 merge_time_size: 1.0
 input_concat_w_mask: False
@@ -35,11 +36,12 @@ hours_to_eval: 48.0
 
 load_model: True
 load_data: True
+load_model_path: "_saved_models/PresentationTesting_epoch32_aucroc0.82350.pt"
 
 model_class: benchmark_lstm
 model_type: lstm
 explanation_methods:
-  n_background_data: 2000
+  n_background_data: 3200
   test_idxs:
   window_shap:
     window_len: 1
@@ -49,3 +51,4 @@ explanation_methods:
 throw_errors: False
 gen_presentation_data: True
 presentation_examples_per_category: 1
+load_autoencoder: False
