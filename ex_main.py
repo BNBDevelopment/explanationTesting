@@ -10,8 +10,8 @@ from yaml import CLoader
 
 import ex_dataset
 from analysis import run_analysis
-from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask
-from ex_models import V1Classifier, BasicLSTM, select_model
+from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask, do_LORE
+from ex_models import V1Classifier, BasicLSTM, select_model, AutoEncoder
 from ex_train import train
 import traceback
 
@@ -68,6 +68,15 @@ def initialize_model(configuration, data):
         model = train(model, configuration, data['train_x'], data['train_y'], data['val_x'], data['val_y'])
     return model
 
+def init_autoencoder(configuration, data):
+    if configuration['load_autoencoder']:
+        model = torch.load(configuration['autoencoder_path'])
+    else:
+        model = AutoEncoder()
+        configuration['optimizer'] = torch.optim.Adam(model.parameters(), lr=configuration['lr'])
+        model = train(model, configuration, data['train_x'], data['train_x'], data['val_x'], data['val_x'], manual_loss_fn=torch.nn.MSELoss(), is_autoencoder=True)
+    return model
+
 
 def main():
     set_random_seed(12345)
@@ -89,6 +98,8 @@ def main():
 
     model = initialize_model(configuration, data)
 
+    #autoencoder = init_autoencoder(configuration, data)
+
     test_subset_size = configuration['explanation_methods']['n_background_data']
     if test_subset_size > 0 and test_subset_size < 1.0:
         test_subset_size = test_subset_size * test_x.shape[0]
@@ -102,12 +113,15 @@ def main():
     y_toExplain = test_y[to_explain_idxs]
 
     methods_enabled = {
-        "WindowSHAP": {"function": do_WindowSHAP, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        "GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"WindowSHAP": {"function": do_WindowSHAP, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+
         #"CoMTE": {"function": do_COMTE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"NUNCF": {"function": do_NUNCF, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        #"Anchors": {"function": do_Anchors, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        "Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        "Anchors": {"function": do_Anchors, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+
+        #"Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"LORE": {"function": do_LORE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
     }
 
     n_explns_per_method = 4
@@ -137,10 +151,13 @@ def main():
         for i in range(configuration['presentation_examples_per_category']):
             matching_data_subset_x.append(x_toExplain[idx_pred1_true1[i]])
             matching_data_subset_y.append(y_toExplain[idx_pred1_true1[i]])
+
             matching_data_subset_x.append(x_toExplain[idx_pred1_true0[i]])
             matching_data_subset_y.append(y_toExplain[idx_pred1_true0[i]])
+
             matching_data_subset_x.append(x_toExplain[idx_pred0_true1[i]])
             matching_data_subset_y.append(y_toExplain[idx_pred0_true1[i]])
+
             matching_data_subset_x.append(x_toExplain[idx_pred0_true0[i]])
             matching_data_subset_y.append(y_toExplain[idx_pred0_true0[i]])
         x_toExplain = np.stack(matching_data_subset_x).squeeze()
@@ -194,7 +211,7 @@ def main():
     methods_enabled["configuration_with_data"] = explanation_config
     pickel_results(methods_enabled, f"{explanation_output_folder}../../all_explanations_data.pkl")
 
-    run_analysis(model, test_x)
+    #run_analysis(model, test_x)
 
 if __name__ == "__main__":
     main()

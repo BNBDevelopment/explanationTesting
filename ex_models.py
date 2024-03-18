@@ -20,6 +20,39 @@ def basic_model(n_feats, n_classes):
     }
     #model = train(model, basic_config, train_x, train_y)
 
+class AutoEncoder(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        init_size = 17*48
+        self.flattener = torch.nn.Flatten()
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Linear(init_size, 1024),
+            torch.nn.ReLU(),
+            torch.nn.Linear(1024, 512),
+            torch.nn.ReLU(),
+            torch.nn.Linear(512, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 64)
+        )
+        self.decoder = torch.nn.Sequential(
+            torch.nn.Linear(64, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 512),
+            torch.nn.ReLU(),
+            torch.nn.Linear(512, 1024),
+            torch.nn.ReLU(),
+            torch.nn.Linear(1024, init_size),
+            torch.nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(self.flattener(x))
+        decoded = self.decoder(encoded).reshape(-1, 48, 17)
+        return decoded
 
 
 def select_model(config):

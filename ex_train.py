@@ -10,7 +10,7 @@ from torcheval.metrics.aggregation.auc import AUC
 from sklearn.base import BaseEstimator
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
-
+from sklearn import metrics
 
 
 def format_pds(pd_x, pd_y, batch_sz, current_device):
@@ -27,7 +27,7 @@ def format_pds(pd_x, pd_y, batch_sz, current_device):
     return d_loader
 
 
-def model_forward(model, config_dict, loss_fn, x, y):
+def model_forward(model, config_dict, loss_fn, x, y, is_autoencoder=False):
     # x = torch.tensor(pd_x.iloc[data_idx, :].to_numpy()).to(current_device)
     # y = torch.tensor(pd_y.iloc[data_idx, :].to_numpy()).to(current_device)
     # x.requires_grad = True
@@ -38,19 +38,24 @@ def model_forward(model, config_dict, loss_fn, x, y):
 
     y = y.squeeze().to(torch.long)
     # loss = loss_fn(output.squeeze(), y.squeeze())
-    y = torch.nn.functional.one_hot(y, num_classes=config_dict['num_classes']).to(torch.float32)
+    if not is_autoencoder:
+        y = torch.nn.functional.one_hot(y, num_classes=config_dict['num_classes'])
+    y = y.to(torch.float32)
     loss = loss_fn(output, y)
 
     return output, loss
 
-def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
+def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None, manual_loss_fn=None, is_autoencoder=False):
     print("STATUS - Begining model training")
     n_epochs = config_dict['n_epochs']
     lr = config_dict['lr']
     batch_sz = config_dict['batch_size']
     optimizer = config_dict['optimizer']
     current_device = config_dict['device']
-    loss_fn = config_dict['loss_fn']
+    if manual_loss_fn is None:
+        loss_fn = config_dict['loss_fn']
+    else:
+        loss_fn = manual_loss_fn
     save_model_path = config_dict['save_model_path']
     model_name = config_dict['model_name']
 
@@ -75,6 +80,7 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
         model.to(current_device)
 
         best_aucroc = 0
+        best_loss = 0
         best_model_path = ""
 
         for epoch in range(1,n_epochs+1):
@@ -88,7 +94,7 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
                     e_iters += 1
 
                     #run the model
-                    outs, loss = model_forward(model, config_dict, loss_fn, x, y)
+                    outs, loss = model_forward(model, config_dict, loss_fn, x, y, is_autoencoder=is_autoencoder)
 
                     optimizer.zero_grad()
                     loss.backward()
@@ -122,51 +128,63 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None):
                 for x, y in tqdm(val_loader, unit="batch", total=len(val_loader)):
                     e_counts += 1
 
-                    outs, loss = model_forward(model, config_dict, loss_fn, x, y)
+                    outs, loss = model_forward(model, config_dict, loss_fn, x, y, is_autoencoder=is_autoencoder)
 
                     val_outs.append(outs.detach().cpu().numpy())
                     val_true.append(y.detach().cpu().numpy())
 
+                    if not is_autoencoder:
+                        preds = torch.argmax(outs, dim=-1).detach()
+                        preds = preds.cpu().detach()
+                        y = y.cpu().detach().squeeze()
 
-                    preds = torch.argmax(outs, dim=-1).detach()
-                    preds = preds.cpu().detach()
-                    y = y.cpu().detach().squeeze()
+                        incor = torch.sum(torch.abs(preds-y)).detach().item()
+                        epoch_total += preds.size(0)
+                        epoch_incorrect += incor
+                        epoch_correct += preds.size(0) - incor
 
-                    incor = torch.sum(torch.abs(preds-y)).detach().item()
-                    epoch_total += preds.size(0)
-                    epoch_incorrect += incor
-                    epoch_correct += preds.size(0) - incor
+                        false_pos += torch.sum(np.logical_and(preds == 1, y == 0)).item()
+                        false_neg += torch.sum(np.logical_and(preds == 0, y == 1)).item()
+                        true_pos += torch.sum(np.logical_and(preds == 1, y == 1)).item()
+                        true_neg += torch.sum(np.logical_and(preds == 0, y == 0)).item()
 
-                    false_pos += torch.sum(np.logical_and(preds == 1, y == 0)).item()
-                    false_neg += torch.sum(np.logical_and(preds == 0, y == 1)).item()
-                    true_pos += torch.sum(np.logical_and(preds == 1, y == 1)).item()
-                    true_neg += torch.sum(np.logical_and(preds == 0, y == 0)).item()
+                        metric_auc.update(preds, y)
+                        metric_aucroc.update(preds, y)
 
-                    metric_auc.update(preds, y)
-                    metric_aucroc.update(preds, y)
-
-                    epoch_validation_loss += loss.item()
+                        epoch_validation_loss += loss.item()
 
                 #auc_val = metric_auc.compute()
                 #aucroc_val = metric_aucroc.compute()
-                from sklearn import metrics
-                auc_roc = metrics.roc_auc_score(np.concatenate(val_true), np.concatenate(val_outs)[:, 1])
+                if not is_autoencoder:
+                    auc_roc = metrics.roc_auc_score(np.concatenate(val_true), np.concatenate(val_outs)[:, 1])
                 #auc_roc = metrics.auc(np.concatenate(val_true), np.concatenate(val_outs)[:, 1])
 
                 print(f"\nEpoch {epoch} \t\t Validation Loss: {epoch_validation_loss/e_counts} \t\t Total: {epoch_total} \t\t Correct: {epoch_correct} \t\t Fails: {epoch_incorrect}")
-                print(f"Epoch {epoch} \t\t Accuracy: {epoch_correct/epoch_total}\t\t AUCROC: {auc_roc}")
-                print(f"Epoch {epoch} \t\t false_pos: {false_pos}\t\t false_neg: {false_neg}\t\t true_pos: {true_pos}\t\t true_neg: {true_neg}\t\t")
+                if not is_autoencoder:
+                    print(f"Epoch {epoch} \t\t Accuracy: {epoch_correct/epoch_total}\t\t AUCROC: {auc_roc}")
+                    print(f"Epoch {epoch} \t\t false_pos: {false_pos}\t\t false_neg: {false_neg}\t\t true_pos: {true_pos}\t\t true_neg: {true_neg}\t\t")
                 print("---------------------------- END EPOCH ------------------------------")
-                metric_auc.reset()
-                if auc_roc > best_aucroc:
-                    best_aucroc = auc_roc
 
-                    if os.path.exists(best_model_path):
-                        os.remove(best_model_path)
-                    new_save_file_path = save_model_path + f"{model_name}_epoch{epoch}_aucroc{auc_roc:.5f}.pt"
-                    torch.save(model, new_save_file_path)
-                    best_model_path = new_save_file_path
+                if not is_autoencoder:
+                    metric_auc.reset()
+                    if auc_roc > best_aucroc:
+                        best_aucroc = auc_roc
 
-                    best_model = copy.deepcopy(model)
+                        if os.path.exists(best_model_path):
+                            os.remove(best_model_path)
+                        new_save_file_path = save_model_path + f"{model_name}_epoch{epoch}_aucroc{auc_roc:.5f}.pt"
+                        torch.save(model, new_save_file_path)
+                        best_model_path = new_save_file_path
+
+                        best_model = copy.deepcopy(model)
+                else:
+                    if epoch_loss > best_loss:
+                        best_loss = epoch_loss
+                        if os.path.exists(best_model_path):
+                            os.remove(best_model_path)
+                        new_save_file_path = save_model_path + f"autoencoder{model_name}_epoch{epoch}_loss{epoch_loss}.pt"
+                        torch.save(model, new_save_file_path)
+                        best_model_path = new_save_file_path
+
         print(f"FINAL\t\t Best AUCROC: {best_aucroc} stored in model at location {best_model_path}")
     return best_model

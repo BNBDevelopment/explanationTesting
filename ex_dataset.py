@@ -188,7 +188,8 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
             used_seq_lens.append(temp.shape[1])
         else:
             for cat in categorical_feats:
-                train_data[cat] = train_data[cat].apply(lambda x: GLASGOW_COMASCALE_MAPPING[cat][x] if x in GLASGOW_COMASCALE_MAPPING[cat].keys()  else x).apply(lambda y: re.sub("\D", "", y) if type(y) == str else y)
+                if cat in GLASGOW_COMASCALE_MAPPING.keys():
+                    train_data[cat] = train_data[cat].apply(lambda x: GLASGOW_COMASCALE_MAPPING[cat][x] if x in GLASGOW_COMASCALE_MAPPING[cat].keys()  else x).apply(lambda y: re.sub("\D", "", y) if type(y) == str else y)
             train_data = train_data.replace("", np.nan)
             clean_data.append(train_data)
             used_seq_lens.append(train_data.shape[1])

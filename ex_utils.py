@@ -22,10 +22,10 @@ class ModelWrapper():
         pred = np.argmax(res, axis=-1)
         return pred
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, x):
         #temp = self.predict(args[0])
         # return torch.from_numpy(temp).to(next(self.model.parameters()).device, torch.float32)
-        return self.model(args[0].unsqueeze(0)).squeeze()
+        return self.model(x)
 
     def predict_proba(self, x):
         if issubclass(x.__class__, torch.Tensor):
