@@ -223,13 +223,14 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
         if not excludes is None:
             nondrop_col_idxs = [x for x in range(0, len(train_data.columns)) if train_data.columns[x] not in excludes]
             train_x = train_x[:,:,nondrop_col_idxs]
+            remaining_col_names = train_data.columns[nondrop_col_idxs]
 
-        categorical_idx = [i for i in range(len(train_data.columns)) if train_data.columns[i] in categorical_feats]
-        train_x = data_postproc(train_x, categorical_idx, list(train_data.columns), config)
+        categorical_idx = [i for i in range(len(remaining_col_names)) if remaining_col_names[i] in categorical_feats]
+        train_x = data_postproc(train_x, categorical_idx, list(remaining_col_names), config)
 
 
-    remaining_column_names = list(train_data.columns)
-    remaining_column_names.pop(time_index)
+    remaining_column_names = list(remaining_col_names)
+    #remaining_column_names.pop(time_index)
 
     return train_x, train_y, remaining_column_names
 

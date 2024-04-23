@@ -37,7 +37,7 @@ def do_WindowSHAP(explanation_config, sample_to_explain, explanation_output_fold
     model = explanation_config["model"]
     model_type = explanation_config["model_type"]
     feature_names = explanation_config["feature_names"]
-    window_length = explanation_config["window_length"]
+    window_length = 1#explanation_config["window_length"]
 
     if sample_to_explain['x'].shape[1] % window_length != 0:
         raise NotImplementedError(f"FATAL - time series length {sample_to_explain['x'].shape[1]} must be divisible by the window size {window_length}")
@@ -168,15 +168,15 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
         flat_feat_name = name + f"_{which_stack}"
         feat_names.append(flat_feat_name)
         GLASGOW_COMASCALE_MAPPING = {
-            'Glascow coma scale eye opening': {'Spontaneously': 4, 'To Pressure': 2, 'To Sound': 3, 'None': 1},
+            'Glascow coma scale eye opening': {'Spontaneously': 4, 'To Pressure': 2, 'To Sound': 3, 'No Response': 1},
             'Glascow coma scale motor response': {'Obeys Commands': 6, 'Localizing': 5, 'Normal Flexion': 4,
-                                                  'Abnormal Flexion': 3, 'Extension': 2, 'None': 1},
+                                                  'Abnormal Flexion': 3, 'Extension': 2, 'No Response': 1},
             'Glascow coma scale verbal response': {'Oriented': 5, 'Confused': 4, 'Words': 3, 'Sounds': 2,
-                                                   'None': 1}}
+                                                   'No Response': 1}}
         if name in config['categorical_features']:
             #GLASGOW_COMASCALE_MAPPING[name]
             if name in GLASGOW_COMASCALE_MAPPING.keys():
-                cat_dict[i] = list(GLASGOW_COMASCALE_MAPPING[name].values()) #instead should be a list of values
+                cat_dict[i] = {v:k for k,v in GLASGOW_COMASCALE_MAPPING[name].items()} #instead should be a dict of values
 
     explainer = anchor_tabular.AnchorTabularExplainer(
         ["Passed","Survived"],
@@ -185,7 +185,8 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
         cat_dict
     )
     # exp = explainer.explain_instance(sample_to_explain['x'].flatten(), model.predict, threshold=0.9)#, desired_label=1-pred_label)#, tau=0.1, stop_on_first=True)
-    exp = explainer.explain_instance(sample_to_explain['x'].flatten().astype(np.float32), model.predict, threshold=0.9, tau=0.95, stop_on_first=True, batch_size=1, delta=0.95)
+    exp = explainer.explain_instance(sample_to_explain['x'].flatten().astype(np.float32), model.predict, threshold=0.95,
+                                     tau=0.1, stop_on_first=True, batch_size=50, delta=0.05)
 
     print(exp)
     print('Anchor: %s' % (' AND '.join(exp.names())))
@@ -207,7 +208,7 @@ def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder
             self.model = model
         def forward(self, x):
             with torch.no_grad():
-                return self.model(x)
+                return self.model(x.unsqueeze(0))
         def __call__(self, x):
             return self.forward(x)
 
@@ -215,9 +216,12 @@ def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder
     unwrapped_model = dynamask_wrapper(model)
 
     pert = GaussianBlur(device)
-    mask = Mask(pert, device)
-    mask.fit(torch.from_numpy(sample_to_explain['x'].squeeze()).to(device, torch.float32), unwrapped_model, loss_function=mse, keep_ratio=0.1,
-             size_reg_factor_init=0.01)  # Select the 10% most important features
+    mask = Mask(pert, device, task='classification')
+    mask.fit(torch.from_numpy(sample_to_explain['x'].squeeze()).to(device, torch.float32), f=unwrapped_model,
+             loss_function=mse, keep_ratio=0.2,
+             time_reg_factor=0.95,
+             size_reg_factor_init=0.1
+             )  # Select the 10% most important features
 
     mask_tensor = mask.mask_tensor
     ids_time = None
@@ -236,6 +240,7 @@ def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
     model_type = explanation_config["model_type"]
     feature_names = explanation_config["feature_names"]
     window_length = explanation_config["window_length"]
+    cur_device = explanation_config["experiment_config"]["device"]
 
     from LASTS_explainer.lasts import Lasts
     from LASTS_explainer.neighborhood_generators import NeighborhoodGenerator
@@ -244,9 +249,25 @@ def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
     from LASTS_explainer.sbgdt import Sbgdt
 
     blackbox = model
-    # _, _, autoencoder = load_model("D:/research/craven/baselines/explanationTesting/_required_Packages/LASTS_explainer/trained_models/cbf/cbf_vae")
-    # encoder = autoencoder.layers[2]
-    # decoder = autoencoder.layers[3]
+    class encoder_wrapper():
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+        def predict(self, x):
+            x = torch.from_numpy(x).to("cpu", torch.float32).reshape(x.shape[0], -1)
+            return self.model.forward(x).detach()
+    class decoder_wrapper():
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+
+        def predict(self, x):
+            x = x.to(torch.float32)
+            return self.model.forward(x).reshape(-1, 48, 17).detach()
+
+    autoencoder = torch.load("_saved_models/autoencoderPresentationTesting_epoch27_loss596045.pt")
+    encoder = encoder_wrapper(autoencoder.encoder.to("cpu"))
+    decoder = decoder_wrapper(autoencoder.decoder.to("cpu"))
 
     random_state = 0
     z = choose_z(sample_to_explain['x'], encoder, decoder, n=1000, x_label=blackbox.predict(sample_to_explain['x'])[0], blackbox=blackbox, check_label=True)
@@ -254,12 +275,12 @@ def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
     neighborhood_generator = NeighborhoodGenerator(blackbox, decoder)
     neigh_kwargs = {
         "balance": False,
-        "n": 500,
-        "n_search": 10000,
-        "threshold": 2,
+        "n": 50,
+        "n_search": 10000000,
+        "threshold": 200,
         "sampling_kind": "uniform_sphere",
         "kind": "gaussian_matched",
-        "verbose": True,
+        "verbose": False,
         "stopping_ratio": 0.01,
         "downward_only": True,
         "redo_search": True,
@@ -268,19 +289,22 @@ def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
     }
 
 
+    model.skip_autobatch = True
     lasts_ = Lasts(blackbox,
                    encoder,
                    decoder,
                    sample_to_explain['x'],
                    neighborhood_generator,
                    z_fixed=z,
-                   labels=["cylinder", "bell", "funnel"]
+                   labels=["survive", "death"]
                    )
-
+    out = lasts_.generate_neighborhood(**neigh_kwargs)
+    model.skip_autobatch = False
     surrogate = Sbgdt(shapelet_model_params={"max_iter": 50}, random_state=random_state)
     # surrogate = Saxdt(random_state=np.random.seed(0))
     # WARNING: you need a forked version of the library sktime in order to view SAX plots
     # SUBSEQUENCE EXPLAINER
+
     lasts_.fit_surrogate(surrogate, binarize_labels=True)
     # SUBSEQUENCE TREE
     lasts_.surrogate._graph

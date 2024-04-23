@@ -6,7 +6,7 @@ categorical_features:
 excludes:
   - "Hours"
 
-n_epochs: 200
+n_epochs: 100
 lr: 0.0002
 loss_type: "BCE"
 
@@ -16,7 +16,7 @@ cutoff_seq_len: 76
 device: cuda
 
 save_model_path: "_saved_models/"
-model_name: "PresentationTesting"
+model_name: "PresentationTesting2"
 mimic_data_path: "./data/in-hospital-mortality/"
 datadir: "./data/my_mimic/"
 
@@ -36,7 +36,7 @@ hours_to_eval: 48.0
 
 load_model: True
 load_data: True
-load_model_path: "_saved_models/PresentationTesting_epoch32_aucroc0.82350.pt"
+load_model_path: "_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
 
 model_class: benchmark_lstm
 model_type: lstm

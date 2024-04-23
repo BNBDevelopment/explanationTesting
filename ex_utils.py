@@ -4,7 +4,7 @@ import torch
 
 
 class ModelWrapper():
-    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256):
+    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256, verbose=False, skip_autobatch=False):
         super().__init__()
         self.model = model
         self.column_names = ["x1"]
@@ -14,6 +14,8 @@ class ModelWrapper():
             self.classes_ = n_classes
         self.model_flag = model_flag
         self.batch_size = batch_size
+        self.verbose = verbose
+        self.skip_autobatch = skip_autobatch
 
     def predict(self, x):
         if len(x.shape) == 2:
@@ -38,14 +40,19 @@ class ModelWrapper():
         else:
             raise NotImplementedError(f"Input class type {x.__class__} not covered for wrapped model")
 
-        if x_input.size(0) > 128:
-            print("NOTICE: Batching for explanation methods activated...")
-            x_arr = torch.split(x_input, x_input.size(0)//(x_input.size(0)//self.batch_size), dim=0)
-            reses = []
-            for x_batch in x_arr:
-                res = self.model(x_batch)
-                reses.append(res.detach().cpu().numpy())
-            res = np.concatenate(reses, axis=0)
+        if not self.skip_autobatch:
+            if x_input.size(0) > 128:
+                if self.verbose:
+                    print("NOTICE: Batching for explanation methods activated...")
+                x_arr = torch.split(x_input, x_input.size(0)//(x_input.size(0)//self.batch_size), dim=0)
+                reses = []
+                for x_batch in x_arr:
+                    res = self.model(x_batch)
+                    reses.append(res.detach().cpu().numpy())
+                res = np.concatenate(reses, axis=0)
+            else:
+                res = self.model(x_input)
+                res = res.detach().cpu().numpy()
         else:
             res = self.model(x_input)
             res = res.detach().cpu().numpy()

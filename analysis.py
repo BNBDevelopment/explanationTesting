@@ -237,6 +237,11 @@ def plot_original_overlap_counterfactual(test_item, explan_res, feature_names, e
         axis[i // n_plots_horiz, i % n_plots_horiz].plot(list(range(0, ts_len)), test_item[:, :, i].flatten(), color='b', label='Original Instance')
         axis[i // n_plots_horiz, i % n_plots_horiz].set_title(f"{feature_names[i]}")
         axis[i // n_plots_horiz, i % n_plots_horiz].set_xticks(list(range(0, ts_len)), labels=time_tick_lbls)
+        axis[i // n_plots_horiz, i % n_plots_horiz].set_ylabel("Original Instance", color='b')
+
+        overlay_plot = axis[i // n_plots_horiz, i % n_plots_horiz].twinx()
+        overlay_plot.set_ylabel("Counterfactual", color='r')
+
     figure.savefig(f"{explanation_output_folder}{image_name_prefix}allFeatures.png")
     plt.close()
 
