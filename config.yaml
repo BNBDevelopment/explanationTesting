@@ -16,7 +16,7 @@ cutoff_seq_len: 76
 device: cuda
 
 save_model_path: "_saved_models/"
-model_name: "PresentationTesting2"
+model_name: "RemoteTest"
 mimic_data_path: "./data/in-hospital-mortality/"
 datadir: "./data/my_mimic/"
 
@@ -38,17 +38,30 @@ load_model: True
 load_data: True
 load_model_path: "_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
 
+halt_and_show_matplotlib: False
 model_class: benchmark_lstm
 model_type: lstm
 explanation_methods:
-  n_background_data: 3200
+  num_background_samples: 0.75
   test_idxs:
-  window_shap:
-    window_len: 1
-    wrap_model: True
-    num_background: 1
+
+  methods:
+    windowshap:
+      num_background_used: 100
+      window_len: 1
+      wrap_model: True
+    comte:
+      num_background_used: 100
+      max_n_feats: 3
+    anchors:
+      num_background_used: 100
+
 
 throw_errors: False
-gen_presentation_data: True
-presentation_examples_per_category: 1
+
+n_instances_to_explain: 4
+n_rand_seed_to_try: 1
+n_trials_per_rand_seed: 1
+
+
 load_autoencoder: False

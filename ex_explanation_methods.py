@@ -29,15 +29,15 @@ import shap
 
 #################################################################################
 
-
 def do_WindowSHAP(explanation_config, sample_to_explain, explanation_output_folder):
+    method_name = "windowshap"
     background_data = explanation_config["background_data"]
-    background_data['x'] = background_data['x'][:100]
-    background_data['y'] = background_data['y'][:100]
+    background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
+    background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     model = explanation_config["model"]
     model_type = explanation_config["model_type"]
     feature_names = explanation_config["feature_names"]
-    window_length = 1#explanation_config["window_length"]
+    window_length = explanation_config[method_name]["window_len"]
 
     if sample_to_explain['x'].shape[1] % window_length != 0:
         raise NotImplementedError(f"FATAL - time series length {sample_to_explain['x'].shape[1]} must be divisible by the window size {window_length}")
@@ -52,8 +52,6 @@ def do_WindowSHAP(explanation_config, sample_to_explain, explanation_output_fold
 
     plot_original_line_with_vals(sample_to_explain, sv.transpose(), feature_names, explanation_output_folder)
     return sv
-
-
 
 
 def do_GradCAM(explanation_config, sample_to_explain, explanation_output_folder):
@@ -76,16 +74,16 @@ def do_GradCAM(explanation_config, sample_to_explain, explanation_output_folder)
     return exp
 
 
-
-
 def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
+    method_name = "comte"
     model = explanation_config["model"]
     feature_names = explanation_config["feature_names"]
     what_is_second_dim = explanation_config["what_is_second_dim"]
     background_data = explanation_config["background_data"]
-    background_data['x'] = background_data['x'][:100]
-    background_data['y'] = background_data['y'][:100]
+    background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
+    background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     cur_device = explanation_config["experiment_config"]["device"]
+    cf_feats_to_switch = explanation_config[method_name]["max_n_feats"]
 
     unwrapped_model = model.model
     unwrapped_model.eval()
@@ -95,15 +93,13 @@ def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
     actual_model_label = unwrapped_model(torch.from_numpy(sample_to_explain['x']).to(torch.float32)).argmax(-1).item()
 
     inputx = torch.from_numpy(sample_to_explain['x']).to('cpu', torch.float32)
-    x1 = model(inputx)
-    x2 = model.model(inputx)
+    # x1 = model(inputx)
+    # x2 = model.model(inputx)
 
-    exp = explainer_method.explain(sample_to_explain['x'], orig_class=actual_model_label, target=1-actual_model_label)
+    exp = explainer_method.explain(sample_to_explain['x'], orig_class=actual_model_label, target=1-actual_model_label, max_n_feats=cf_feats_to_switch)
 
     plot_original_overlap_counterfactual(sample_to_explain['x'], exp, feature_names, explanation_output_folder)
     return exp
-
-
 
 
 def do_NUNCF(explanation_config, sample_to_explain, explanation_output_folder):
@@ -111,8 +107,8 @@ def do_NUNCF(explanation_config, sample_to_explain, explanation_output_folder):
     feature_names = explanation_config["feature_names"]
     what_is_second_dim = explanation_config["what_is_second_dim"]
     background_data = explanation_config["background_data"]
-    # background_data['x'] = background_data['x'][:100]
-    # background_data['y'] = background_data['y'][:100]
+    background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
+    background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     unwrapped_model = model.model
     unwrapped_model.eval()
     comte_formatted_data = tuple([background_data['x'], background_data['y'].squeeze()])
@@ -147,9 +143,12 @@ def do_NUNCF(explanation_config, sample_to_explain, explanation_output_folder):
 
 
 def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder):
+    method_name = "anchors"
     model = explanation_config["model"]
     feature_names = explanation_config["feature_names"]
     background_data = explanation_config["background_data"]
+    # background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
+    # background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     config = explanation_config["experiment_config"]
 
     one_locs = np.argwhere(background_data['y'] == 1)[:,0]
@@ -195,6 +194,7 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
 
     return exp.exp_map
 
+
 def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder):
     model = explanation_config["model"]
     feature_names = explanation_config["feature_names"]
@@ -233,9 +233,10 @@ def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder
 
 
 def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
+    method_name = "lore"
     background_data = explanation_config["background_data"]
-    background_data['x'] = background_data['x'][:100]
-    background_data['y'] = background_data['y'][:100]
+    background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
+    background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     model = explanation_config["model"]
     model_type = explanation_config["model_type"]
     feature_names = explanation_config["feature_names"]

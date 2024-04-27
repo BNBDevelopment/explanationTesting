@@ -75,7 +75,7 @@ class COMTECF(CF):
         self.max_iter = max_iter
 
     def explain(
-        self, x: np.ndarray, orig_class: int = None, target: int = None
+        self, x: np.ndarray, orig_class: int = None, target: int = None, max_n_feats=3
     ) -> Tuple[np.ndarray, int]:
         """
         Calculates the Counterfactual according to Ates.
@@ -104,10 +104,10 @@ class COMTECF(CF):
                 max_attempts=self.max_attemps,
                 maxiter=self.max_iter,
             )
-            exp, label = opt.explain(x, to_maximize=target)
+            exp, label = opt.explain(x, to_maximize=target, num_features=max_n_feats)
         elif self.method == "brute":
             opt = BruteForceSearch(self.predict, train_x, train_y, threads=1)
-            exp, label = opt.explain(x, to_maximize=target)
+            exp, label = opt.explain(x, to_maximize=target, num_features=max_n_feats)
         if self.mode != "feat":
             exp = np.swapaxes(exp, -1, -2)
         return exp.reshape(org_shape), label
