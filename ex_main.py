@@ -1,3 +1,4 @@
+import argparse
 import pathlib
 import pickle
 import time
@@ -36,7 +37,14 @@ def pickel_results(obj, fname):
 
 
 def initialize_configuration():
-    stream = open("config.yaml", "r")
+    parser = argparse.ArgumentParser(
+        prog='Explanation Testing Framework',
+        description='Run a selection of explanation methods')
+    parser.add_argument('configuration')
+    args = parser.parse_args()
+    config_path = args.configuration
+
+    stream = open(config_path, "r")
     try:
         config = yaml.load(stream,  Loader=CLoader)
     finally:

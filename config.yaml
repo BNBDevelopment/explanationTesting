@@ -16,10 +16,8 @@ cutoff_seq_len: 76
 device: cuda
 
 save_model_path: "_saved_models/"
-model_name: "RemoteTest"
 mimic_data_path: "./data/in-hospital-mortality/"
 datadir: "./data/my_mimic/"
-
 data_suffix: "_allData.pkl"
 
 model_n_layers: 1
@@ -27,7 +25,6 @@ model_dropout: 0.3
 model_bias: True
 model_bidirectional: True
 model_hdim: 32
-
 
 merge_time_size: 1.0
 input_concat_w_mask: False
@@ -41,10 +38,20 @@ load_model_path: "_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
 halt_and_show_matplotlib: False
 model_class: benchmark_lstm
 model_type: lstm
+load_autoencoder: False
+
+throw_errors: False
+
+
+
+model_name: "RemoteTest"
+
+n_instances_to_explain: 4
+n_rand_seed_to_try: 1
+n_trials_per_rand_seed: 1
 explanation_methods:
   num_background_samples: 0.75
   test_idxs:
-
   methods:
     windowshap:
       num_background_used: 100
@@ -55,13 +62,5 @@ explanation_methods:
       max_n_feats: 3
     anchors:
       num_background_used: 100
-
-
-throw_errors: False
-
-n_instances_to_explain: 4
-n_rand_seed_to_try: 1
-n_trials_per_rand_seed: 1
-
-
-load_autoencoder: False
+      tau: 0.15
+      delta: 0.1

@@ -150,6 +150,9 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
     # background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
     # background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     config = explanation_config["experiment_config"]
+    tau_setting = explanation_config[method_name]["tau"]
+    delta_setting = explanation_config[method_name]["delta"]
+    #tau = 0.1, stop_on_first = True, batch_size = 50, delta = 0.05
 
     one_locs = np.argwhere(background_data['y'] == 1)[:,0]
     zero_locs = np.argwhere(background_data['y'] == 0)[:,0]
@@ -185,7 +188,7 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
     )
     # exp = explainer.explain_instance(sample_to_explain['x'].flatten(), model.predict, threshold=0.9)#, desired_label=1-pred_label)#, tau=0.1, stop_on_first=True)
     exp = explainer.explain_instance(sample_to_explain['x'].flatten().astype(np.float32), model.predict, threshold=0.95,
-                                     tau=0.1, stop_on_first=True, batch_size=50, delta=0.05)
+                                     tau=tau_setting, stop_on_first=True, batch_size=50, delta=delta_setting)
 
     print(exp)
     print('Anchor: %s' % (' AND '.join(exp.names())))
