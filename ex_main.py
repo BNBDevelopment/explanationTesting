@@ -70,7 +70,7 @@ def initialize_configuration():
 
 def initialize_model(configuration, data):
     if configuration['load_model']:
-        model = torch.load(configuration['load_model_path'], map_location=torch.device('cpu'))
+        model = torch.load(configuration['load_model_path'], map_location=torch.device(configuration['device']))
     else:
         model = select_model(configuration)
         configuration['optimizer'] = torch.optim.Adam(model.parameters(), lr=configuration['lr'])
