@@ -31,12 +31,12 @@ class ModelWrapper():
 
     def predict_proba(self, x):
         if issubclass(x.__class__, torch.Tensor):
-            x_input = x.to(self.model.fc.bias.get_device())
+            x_input = x.to(self.model.fc.bias.device)
         elif issubclass(x.__class__, pd.DataFrame):
             x_input = x.to_numpy()
-            x_input = torch.from_numpy(x_input).to(self.model.fc.bias.get_device()).to(torch.float32)
+            x_input = torch.from_numpy(x_input).to(self.model.fc.bias.device).to(torch.float32)
         elif issubclass(x.__class__, np.ndarray):
-            x_input = torch.from_numpy(x).to(self.model.fc.bias.get_device()).to(torch.float32)
+            x_input = torch.from_numpy(x).to(self.model.fc.bias.device).to(torch.float32)
         else:
             raise NotImplementedError(f"Input class type {x.__class__} not covered for wrapped model")
 
