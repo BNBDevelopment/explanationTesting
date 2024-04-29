@@ -2,21 +2,16 @@ import copy
 
 import pandas as pd
 import torch
+from TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
+from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
+from anchor import anchor_tabular
 
-from _required_Packages.ForkAnchors.anchor import anchor_image
+from windowshap.windowshap import StationaryWindowSHAP
+
 # from _required_Packages.ForkDynamask.attribution.mask import Mask
 # from _required_Packages.ForkDynamask.attribution.perturbation import GaussianBlur
-# from _required_Packages.ForkDynamask.utils.losses import mse
-# from TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
-# from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
-# from TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
 
-from _required_Packages.ForkAnchors.anchor import anchor_tabular
-# from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
-from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
-# from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import \
-#     NativeGuideCF
-from _required_Packages.ForkWindowSHAP.windowshap import StationaryWindowSHAP
+from TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
 
 from analysis import plot_original_overlap_counterfactual, plot_original_line_with_vals
 import numpy as np
@@ -103,6 +98,7 @@ def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
 
 
 def do_NUNCF(explanation_config, sample_to_explain, explanation_output_folder):
+    method_name = "nuncf"
     model = explanation_config["model"]
     feature_names = explanation_config["feature_names"]
     what_is_second_dim = explanation_config["what_is_second_dim"]
