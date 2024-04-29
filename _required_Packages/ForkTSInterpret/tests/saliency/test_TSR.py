@@ -6,7 +6,7 @@ import numpy as np
 import torch 
 import tensorflow as tf
 from ClassificationModels.CNN_T import ResNetBaseline, UCRDataset
-from TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
 
 @pytest.fixture
 def cnn_gunPoint_torch():

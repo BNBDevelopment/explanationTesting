@@ -13,7 +13,7 @@ from tslearn.barycenters import dtw_barycenter_averaging
 from tslearn.neighbors import KNeighborsTimeSeries
 
 from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.CF import CF
-from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.GradCam.GradCam_1D import GradCam1D
+#from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.GradCam.GradCam_1D import GradCam1D
 from _required_Packages.ForkTSInterpret.TSInterpret.Models.PyTorchModel import PyTorchModel
 from _required_Packages.ForkTSInterpret.TSInterpret.Models.TensorflowModel import TensorFlowModel
 

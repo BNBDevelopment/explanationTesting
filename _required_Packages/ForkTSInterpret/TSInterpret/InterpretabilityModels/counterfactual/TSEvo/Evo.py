@@ -6,7 +6,7 @@ from deap import algorithms, base, creator, tools
 from deap.benchmarks.tools import convergence, diversity, hypervolume
 
 import TSInterpret.InterpretabilityModels.counterfactual.TSEvo.EvoUtils as EvoUtils
-from TSInterpret.InterpretabilityModels.counterfactual.TSEvo.EvoUtils import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.TSEvo.EvoUtils import (
     create_logbook,
     create_mstats,
     eval,
@@ -14,7 +14,7 @@ from TSInterpret.InterpretabilityModels.counterfactual.TSEvo.EvoUtils import (
     pareto_eq,
     recombine,
 )
-from TSInterpret.InterpretabilityModels.counterfactual.TSEvo.Problem import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.TSEvo.Problem import (
     MultiObjectiveCounterfactuals,
 )
 

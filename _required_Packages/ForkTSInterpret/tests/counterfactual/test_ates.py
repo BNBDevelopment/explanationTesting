@@ -6,7 +6,7 @@ import torch
 from tslearn.datasets import UCR_UEA_datasets
 
 from ClassificationModels.CNN_T import ResNetBaseline, fit
-from TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
 
 
 @pytest.fixture

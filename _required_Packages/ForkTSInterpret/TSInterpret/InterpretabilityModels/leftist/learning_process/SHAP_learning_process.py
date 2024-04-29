@@ -1,10 +1,10 @@
 import numpy as np
 from sklearn.linear_model import lars_path
 
-from TSInterpret.InterpretabilityModels.leftist.learning_process.learning_process import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.learning_process.learning_process import (
     LearningProcess,
 )
-from TSInterpret.InterpretabilityModels.leftist.learning_process.neighbors_generator.SHAP_neighbors_generator import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.learning_process.neighbors_generator.SHAP_neighbors_generator import (
     SHAPNeighborsGenerator,
 )
 

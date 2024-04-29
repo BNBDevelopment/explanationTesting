@@ -1,4 +1,4 @@
-from TSInterpret.Models.base_model import BaseModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.base_model import BaseModel
 
 
 class SklearnModel(BaseModel):

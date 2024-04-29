@@ -1,6 +1,6 @@
 import numpy as np
 
-from TSInterpret.InterpretabilityModels.leftist.transform import Transform
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.transform import Transform
 
 __author__ = "Mael Guilleme mael.guilleme[at]irisa.fr"
 

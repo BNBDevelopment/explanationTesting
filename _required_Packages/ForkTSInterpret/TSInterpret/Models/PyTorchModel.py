@@ -4,7 +4,7 @@ from typing import List
 import torch
 import numpy as np
 
-from TSInterpret.Models.base_model import BaseModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.base_model import BaseModel
 
 
 class PyTorchModel(BaseModel):

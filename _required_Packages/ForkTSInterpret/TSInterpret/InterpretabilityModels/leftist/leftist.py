@@ -1,27 +1,27 @@
 import numpy as np
 
-from TSInterpret.InterpretabilityModels.FeatureAttribution import FeatureAttribution
-from TSInterpret.InterpretabilityModels.leftist.learning_process.LIME_learning_process import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.FeatureAttribution import FeatureAttribution
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.learning_process.LIME_learning_process import (
     LIMELearningProcess,
 )
-from TSInterpret.InterpretabilityModels.leftist.learning_process.SHAP_learning_process import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.learning_process.SHAP_learning_process import (
     SHAPLearningProcess,
 )
-from TSInterpret.InterpretabilityModels.leftist.timeseries.segmentator.uniform_segmentator import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.timeseries.segmentator.uniform_segmentator import (
     UniformSegmentator,
 )
-from TSInterpret.InterpretabilityModels.leftist.timeseries.transform_function.mean_transform import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.timeseries.transform_function.mean_transform import (
     MeanTransform,
 )
-from TSInterpret.InterpretabilityModels.leftist.timeseries.transform_function.rand_background_transform import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.timeseries.transform_function.rand_background_transform import (
     RandBackgroundTransform,
 )
-from TSInterpret.InterpretabilityModels.leftist.timeseries.transform_function.straightline_transform import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.timeseries.transform_function.straightline_transform import (
     StraightlineTransform,
 )
-from TSInterpret.Models.PyTorchModel import PyTorchModel
-from TSInterpret.Models.SklearnModel import SklearnModel
-from TSInterpret.Models.TensorflowModel import TensorFlowModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.PyTorchModel import PyTorchModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.SklearnModel import SklearnModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.TensorflowModel import TensorFlowModel
 
 
 class LEFTIST(FeatureAttribution):

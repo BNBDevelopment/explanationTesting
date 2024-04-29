@@ -2,10 +2,10 @@ import numpy as np
 from sklearn.linear_model import Ridge, lars_path
 from sklearn.utils import check_random_state
 
-from TSInterpret.InterpretabilityModels.leftist.learning_process.learning_process import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.learning_process.learning_process import (
     LearningProcess,
 )
-from TSInterpret.InterpretabilityModels.leftist.learning_process.neighbors_generator.LIME_neighbors_generator import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.learning_process.neighbors_generator.LIME_neighbors_generator import (
     LIMENeighborsGenerator,
 )
 

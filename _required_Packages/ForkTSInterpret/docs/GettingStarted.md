@@ -24,7 +24,7 @@ TSInterpret takes inspiration from scikit-learn, consisting of distinct initiali
 
 First, we import the explainer:
 ``` py
-from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
 ```
 
 Next, we initialize it by passing it a model (or in this case also possible a predict function) and any other necessary arguments:

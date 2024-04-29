@@ -3,7 +3,7 @@ from tslearn.datasets import UCR_UEA_datasets
 import numpy as np 
 import torch
 from ClassificationModels.CNN_T import ResNetBaseline,fit
-from TSInterpret.InterpretabilityModels.counterfactual.TSEvoCF import TSEvo
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.TSEvoCF import TSEvo
 import sklearn
 import tensorflow as tf 
 

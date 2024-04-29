@@ -6,7 +6,7 @@ import numpy as np
 import torch 
 import tensorflow as tf
 from ClassificationModels.CNN_T import ResNetBaseline, UCRDataset
-from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF \
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF \
      import NativeGuideCF
 
 
@@ -40,7 +40,7 @@ def cnn_gunPoint_tensorflow():
 @pytest.fixture
 def cf_ng_torch_explainer( request, cnn_gunPoint_torch):
     # TODO 
-    from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF \
+    from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF \
      import NativeGuideCF
     X, y, model = cnn_gunPoint_torch
     cf_explainer =NativeGuideCF(model,(X,y),backend='PYT',method= request.param,mode='feat')

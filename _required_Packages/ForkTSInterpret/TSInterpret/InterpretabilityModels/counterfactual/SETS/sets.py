@@ -9,7 +9,7 @@ import tensorflow.keras as keras
 from sktime.datatypes._panel._convert import from_3d_numpy_to_nested
 from tslearn.neighbors import KNeighborsTimeSeries
 
-from TSInterpret.InterpretabilityModels.counterfactual.SETS.utils import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.SETS.utils import (
     get_all_shapelet_locations_scaled_threshold,
     get_all_shapelet_locations_scaled_threshold_test,
     get_nearest_neighbor,

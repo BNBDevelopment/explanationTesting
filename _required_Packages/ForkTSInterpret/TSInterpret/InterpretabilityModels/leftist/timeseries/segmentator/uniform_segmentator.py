@@ -1,6 +1,6 @@
 import numpy as np
 
-from TSInterpret.InterpretabilityModels.leftist.timeseries.segmentator.segmentator import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.leftist.timeseries.segmentator.segmentator import (
     Segmentator,
 )
 

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from TSInterpret.Models.base_model import BaseModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.base_model import BaseModel
 import numpy as np
 
 
