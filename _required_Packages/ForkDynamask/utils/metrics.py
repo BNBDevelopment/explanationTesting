@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from utils.tensor_manipulation import extract_subtensor
+from _required_Packages.ForkDynamask.utils.tensor_manipulation import extract_subtensor
 
 
 def get_information(

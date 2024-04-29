@@ -1,4 +1,4 @@
-from TSInterpret.InterpretabilityModels.InterpretabilityBase import InterpretabilityBase
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.InterpretabilityBase import InterpretabilityBase
 
 
 class InstanceBase(InterpretabilityBase):

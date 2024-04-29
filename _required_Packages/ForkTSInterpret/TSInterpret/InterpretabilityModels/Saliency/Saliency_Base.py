@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from TSInterpret.InterpretabilityModels.FeatureAttribution import FeatureAttribution
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.FeatureAttribution import FeatureAttribution
 import numpy as np
 
 

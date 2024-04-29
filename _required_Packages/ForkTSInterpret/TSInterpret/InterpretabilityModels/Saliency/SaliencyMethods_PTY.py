@@ -14,7 +14,7 @@ from captum.attr import (
 from sklearn import preprocessing
 from torch.autograd import Variable
 
-from TSInterpret.InterpretabilityModels.Saliency.Saliency_Base import Saliency as Sal
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.Saliency.Saliency_Base import Saliency as Sal
 
 
 class Saliency_PTY(Sal):

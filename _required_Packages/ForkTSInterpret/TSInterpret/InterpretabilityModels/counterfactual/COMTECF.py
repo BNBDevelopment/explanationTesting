@@ -1,10 +1,10 @@
 from typing import Tuple
 import numpy as np
-from TSInterpret.InterpretabilityModels.counterfactual.CF import CF
-from TSInterpret.Models.PyTorchModel import PyTorchModel
-from TSInterpret.Models.SklearnModel import SklearnModel
-from TSInterpret.Models.TensorflowModel import TensorFlowModel
-from TSInterpret.InterpretabilityModels.counterfactual.COMTE.Optimization import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.CF import CF
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.PyTorchModel import PyTorchModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.SklearnModel import SklearnModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.TensorflowModel import TensorFlowModel
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.COMTE.Optimization import (
     BruteForceSearch,
     OptimizedSearch,
 )

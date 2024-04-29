@@ -8,8 +8,8 @@ import torch
 import torch.optim as optim
 from torch.nn import Softmax
 
-from attribution.perturbation import Perturbation
-from utils.metrics import get_entropy, get_information
+from _required_Packages.ForkDynamask.attribution.perturbation import Perturbation
+from _required_Packages.ForkDynamask.utils.metrics import get_entropy, get_information
 
 
 class Mask:
@@ -108,7 +108,7 @@ class Mask:
         self.T, self.N_features = X.shape
         self.loss_function = loss_function
         if target is None:
-            self.Y_target = f(X)
+            self.Y_target = f.forward(X)
         else:
             self.Y_target = target
 

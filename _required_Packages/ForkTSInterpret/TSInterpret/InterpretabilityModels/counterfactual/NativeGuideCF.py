@@ -12,10 +12,10 @@ from torchcam.methods import CAM
 from tslearn.barycenters import dtw_barycenter_averaging
 from tslearn.neighbors import KNeighborsTimeSeries
 
-from TSInterpret.InterpretabilityModels.counterfactual.CF import CF
-from TSInterpret.InterpretabilityModels.GradCam.GradCam_1D import GradCam1D
-from TSInterpret.Models.PyTorchModel import PyTorchModel
-from TSInterpret.Models.TensorflowModel import TensorFlowModel
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.CF import CF
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.GradCam.GradCam_1D import GradCam1D
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.PyTorchModel import PyTorchModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.TensorflowModel import TensorFlowModel
 
 warnings.filterwarnings("ignore")
 warnings.simplefilter("ignore")

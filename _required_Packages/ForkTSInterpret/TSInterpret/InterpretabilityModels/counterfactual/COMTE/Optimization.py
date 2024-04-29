@@ -6,11 +6,11 @@ import numpy as np
 import pandas as pd
 from sklearn.neighbors import KDTree
 from skopt import gbrt_minimize, gp_minimize
-from TSInterpret.InterpretabilityModels.counterfactual.COMTE.Problem import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.COMTE.Problem import (
     LossDiscreteState,
     Problem,
 )
-from TSInterpret.InterpretabilityModels.counterfactual.COMTE.Optimization_helpers import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.COMTE.Optimization_helpers import (
     random_hill_climb,
 )
 

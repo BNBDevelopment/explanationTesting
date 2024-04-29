@@ -4,23 +4,23 @@ import numpy as np
 from sklearn.preprocessing import LabelEncoder
 from sktime.datatypes._panel._convert import from_3d_numpy_to_nested
 
-from TSInterpret.InterpretabilityModels.counterfactual.CF import CF
-from TSInterpret.InterpretabilityModels.counterfactual.SETS.ContractedST import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.CF import CF
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.SETS.ContractedST import (
     ContractedShapeletTransform,
 )
-from TSInterpret.InterpretabilityModels.counterfactual.SETS.sets import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.SETS.sets import (
     fit_shapelets,
     sets_explain,
 )
-from TSInterpret.InterpretabilityModels.counterfactual.SETS.utils import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.SETS.utils import (
     MultivariateTransformer,
     get_scores,
     get_shapelets,
     get_shapelets_distances,
 )
-from TSInterpret.Models.PyTorchModel import PyTorchModel
-from TSInterpret.Models.SklearnModel import SklearnModel
-from TSInterpret.Models.TensorflowModel import TensorFlowModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.PyTorchModel import PyTorchModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.SklearnModel import SklearnModel
+from _required_Packages.ForkTSInterpret.TSInterpret.Models.TensorflowModel import TensorFlowModel
 
 
 class SETSCF(CF):

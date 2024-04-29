@@ -1,8 +1,8 @@
 import tensorflow
 import torch
 
-from TSInterpret.InterpretabilityModels.Saliency.SaliencyMethods_PTY import Saliency_PTY
-from TSInterpret.InterpretabilityModels.Saliency.SaliencyMethods_TF import Saliency_TF
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.Saliency.SaliencyMethods_PTY import Saliency_PTY
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.Saliency.SaliencyMethods_TF import Saliency_TF
 
 
 class TSR:

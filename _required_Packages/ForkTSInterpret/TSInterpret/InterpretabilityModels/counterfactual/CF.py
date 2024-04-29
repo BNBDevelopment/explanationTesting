@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from TSInterpret.InterpretabilityModels.InstanceBase import InstanceBase
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.InstanceBase import InstanceBase
 
 
 class CF(InstanceBase):

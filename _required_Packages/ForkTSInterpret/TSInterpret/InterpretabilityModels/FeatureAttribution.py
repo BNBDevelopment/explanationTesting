@@ -6,7 +6,7 @@ import numpy as np
 import seaborn as sns
 from sklearn import preprocessing
 
-from TSInterpret.InterpretabilityModels.InterpretabilityBase import InterpretabilityBase
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.InterpretabilityBase import InterpretabilityBase
 
 
 class FeatureAttribution(InterpretabilityBase):

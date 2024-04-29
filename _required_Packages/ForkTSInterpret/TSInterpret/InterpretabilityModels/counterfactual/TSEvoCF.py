@@ -1,7 +1,7 @@
 import numpy as np
 
-from TSInterpret.InterpretabilityModels.counterfactual.CF import CF
-from TSInterpret.InterpretabilityModels.counterfactual.TSEvo.Evo import (
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.CF import CF
+from _required_Packages.ForkTSInterpret.TSInterpret.InterpretabilityModels.counterfactual.TSEvo.Evo import (
     EvolutionaryOptimization,
 )
 
