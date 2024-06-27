@@ -250,7 +250,7 @@ def load_file_data(config, data_type="train"):
     data_filename = config['data_suffix']
 
     data_package_path = datadir + data_type+data_filename
-    if config['load_data']:
+    if config['experiment']['load_data']:
         if os.path.isfile(data_package_path):
             print("STATUS - Loading MIMIC-III data from pre-built files")
             data_dict = load_data(data_package_path)

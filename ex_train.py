@@ -57,7 +57,7 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None, manual_loss_fn
     else:
         loss_fn = manual_loss_fn
     save_model_path = config_dict['save_model_path']
-    model_name = config_dict['model_name']
+    experiment_name = config_dict['experiment_name']
 
     best_model = model
 
@@ -172,7 +172,7 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None, manual_loss_fn
 
                         if os.path.exists(best_model_path):
                             os.remove(best_model_path)
-                        new_save_file_path = save_model_path + f"{model_name}_epoch{epoch}_aucroc{auc_roc:.5f}.pt"
+                        new_save_file_path = save_model_path + f"{experiment_name}_epoch{epoch}_aucroc{auc_roc:.5f}.pt"
                         torch.save(model, new_save_file_path)
                         best_model_path = new_save_file_path
 
@@ -182,7 +182,7 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None, manual_loss_fn
                         best_loss = epoch_loss
                         if os.path.exists(best_model_path):
                             os.remove(best_model_path)
-                        new_save_file_path = save_model_path + f"autoencoder{model_name}_epoch{epoch}_loss{epoch_loss}.pt"
+                        new_save_file_path = save_model_path + f"autoencoder{experiment_name}_epoch{epoch}_loss{epoch_loss}.pt"
                         torch.save(model, new_save_file_path)
                         best_model_path = new_save_file_path
 

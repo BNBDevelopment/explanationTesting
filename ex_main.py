@@ -67,41 +67,31 @@ def initialize_configuration():
     return config
 
 
-def initialize_model(configuration, data):
-    if configuration['load_model']:
-        model = torch.load(configuration['load_model_path'], map_location=torch.device(configuration['device']))
+def initialize_model(config, data):
+    if config['experiment']['load_model']:
+        model = torch.load(config['experiment']['load_model_path'], map_location=torch.device(config['device']))
     else:
-        model = select_model(configuration)
-        configuration['optimizer'] = torch.optim.Adam(model.parameters(), lr=configuration['lr'])
-        model = train(model, configuration, data['train_x'], data['train_y'], data['val_x'], data['val_y'])
+        model = select_model(config)
+        config['optimizer'] = torch.optim.Adam(model.parameters(), lr=config['training']['train']['lr'])
+        model = train(model, config, data['train_x'], data['train_y'], data['val_x'], data['val_y'])
     return model
 
 
-def init_autoencoder(configuration, data):
-    if configuration['load_autoencoder']:
-        model = torch.load(configuration['autoencoder_path'])
-    else:
-        model = AutoEncoder()
-        configuration['optimizer'] = torch.optim.Adam(model.parameters(), lr=configuration['lr'])
-        model = train(model, configuration, data['train_x'], data['train_x'], data['val_x'], data['val_x'], manual_loss_fn=torch.nn.MSELoss(), is_autoencoder=True)
-    return model
-
-
-def update_explanation_outputs(configuration, expl_information, generated_explanation, explanation_output_folder, time_seconds_taken,
+def update_explanation_outputs(config, expl_information, generated_explanation, explanation_output_folder, time_seconds_taken,
                                rand_seed, sample_to_explain, ordered_indexes, index_to_explain, methods_implemented, experiment_out_path):
     pickel_results(generated_explanation, f"{explanation_output_folder}explanation.pkl")
     expl_information["result_store"]["explanations"].append(generated_explanation)
     expl_information["result_store"]["time_taken"].append(time_seconds_taken)
     expl_information["result_store"]["random_seed"].append(rand_seed)
     expl_information["result_store"]["samples_explained"].append(sample_to_explain)
-    if configuration['class_balance_explanations']:
+    if config['class_balance_explanations']:
         expl_information["result_store"]["item_index"].append(ordered_indexes[index_to_explain])
     else:
         expl_information["result_store"]["item_index"].append(index_to_explain)
     pickel_results(methods_implemented, f"{experiment_out_path}/all_explanations.pkl")
 
 
-def get_confidence_intervals_for_preds(configuration, model, test_x):
+def get_confidence_intervals_for_preds(config, model, test_x):
     get_avg_confidence = True
     if get_avg_confidence:
         from operator import add, truediv
@@ -110,7 +100,7 @@ def get_confidence_intervals_for_preds(configuration, model, test_x):
         p_count = 0
         n_count = 0
         for x in test_x:
-            logits = model(torch.from_numpy(x).to(configuration['device'], torch.float32).unsqueeze(0)).tolist()[0]
+            logits = model(torch.from_numpy(x).to(config['device'], torch.float32).unsqueeze(0)).tolist()[0]
             if logits[0] > logits[1]:
                 neg_logits.append(logits)
                 n_count += 1
@@ -123,11 +113,11 @@ def get_confidence_intervals_for_preds(configuration, model, test_x):
         print(f"25, 50, 75 Percentiles: {np.percentile(pos_arr, [25, 50, 75])} ")
 
 
-def order_data_by_correct_incorrect_and_prediction(configuration, model, x_toExplain, y_true):
-    y_predicted = ModelWrapper(model, skip_autobatch=configuration['skip_autobatch']).predict_label(x_toExplain)
+def order_data_by_correct_incorrect_and_prediction(config, model, x_toExplain, y_true):
+    y_predicted = ModelWrapper(model, skip_autobatch=config['skip_autobatch']).predict_label(x_toExplain)
     y_true = y_true.flatten()
 
-    n_instances_to_explain = configuration['n_instances_to_explain']
+    n_instances_to_explain = config['n_instances_to_explain']
     num_cases = 4
     print(f"Number of prediction-label combination cases is {num_cases}")
 
@@ -178,11 +168,11 @@ def get_explanation_data(configuration, test_x, test_y):
     return x_background, y_background, x_to_explain, y_true_to_explain
 
 
-def build_explanation_config(configuration, model, feature_names, x_toExplain, x_background, y_background):
+def build_explanation_config(config, model, feature_names, x_toExplain, x_background, y_background):
     explanation_config = {}
-    explanation_config["experiment_config"] = configuration
+    explanation_config["experiment_config"] = config
     explanation_config["background_data"] = {"x": x_background, "y": y_background}
-    explanation_config["model"] = ModelWrapper(model, skip_autobatch=configuration["skip_autobatch"])
+    explanation_config["model"] = ModelWrapper(model, skip_autobatch=config['skip_autobatch'])
     explanation_config["model_type"] = "lstm"
     explanation_config["feature_names"] = feature_names
     explanation_config["window_length"] = 1
@@ -191,19 +181,19 @@ def build_explanation_config(configuration, model, feature_names, x_toExplain, x
     explanation_config["n_timesteps"] = x_toExplain.shape[1]
     explanation_config["n_features"] = x_toExplain.shape[2]
 
-    for method_dict, m_vals in configuration['explanation_methods']['methods'].items():
+    for method_dict, m_vals in config['explanation_methods']['methods'].items():
         explanation_config[method_dict] = m_vals
     return explanation_config
 
 def main():
     set_random_seed(12345)
     print("STATUS - Initializing Configuration")
-    configuration = initialize_configuration()
+    config = initialize_configuration()
 
     print("STATUS - Starting Initial Data Load")
-    train_x, train_y, feature_names = ex_dataset.load_file_data(configuration, data_type="train")
-    val_x, val_y, _ = ex_dataset.load_file_data(configuration, data_type="val")
-    test_x, test_y, _ = ex_dataset.load_file_data(configuration, data_type="test")
+    train_x, train_y, feature_names = ex_dataset.load_file_data(config, data_type="train")
+    val_x, val_y, _ = ex_dataset.load_file_data(config, data_type="val")
+    test_x, test_y, _ = ex_dataset.load_file_data(config, data_type="test")
     data = {
         "train_x":train_x,
         "train_y":train_y,
@@ -213,55 +203,52 @@ def main():
         "test_y":test_y,
     }
 
-    model = initialize_model(configuration, data)
-    #autoencoder = init_autoencoder(configuration, data)
+    model = initialize_model(config, data)
 
-    x_background, y_background, x_to_explain, y_true_to_explain = get_explanation_data(configuration, test_x, test_y)
+    x_background, y_background, x_to_explain, y_true_to_explain = get_explanation_data(config, test_x, test_y)
 
     #List of the methods currently implemented for use
     methods_implemented = {
-        # Attribution Methods
+        ############################# Attribution Methods
         "WindowSHAP": {"function": do_WindowSHAP, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        # Counterfactual Methods
+        # "Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+
+        ############################# Counterfactual Methods
         "CoMTE": {"function": do_COMTE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"NUNCF": {"function": do_NUNCF, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+
+        ############################# Rule-based Methods
         "Anchors": {"function": do_Anchors, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         #"AnchorsAlt": {"function": do_AnchorsAlt, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        # Rule-based Methods
-        #"Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        # Natural Language Methods
+
+        ############################# Natural Language Methods
         #"LORE": {"function": do_LORE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
     }
 
-    #Builds the explanation configuration, which is the config common to all of the explanation methods
-    explanation_config = build_explanation_config(configuration, model, feature_names, x_to_explain, x_background, y_background)
+    #Builds the explanation config, which is the config common to all of the explanation methods
+    explanation_config = build_explanation_config(config, model, feature_names, x_to_explain, x_background, y_background)
 
     # Reorders the data so that we see explanations for every prediction-label case (i.e. Index 1 = "Model predicts 1 but True Label is 0", Index 2 = "Model predicts 1 but True Label is 1", etc...)
-    if configuration['class_balance_explanations']:
-        x_to_explain, y_true_to_explain, order_format, ordered_indexes = order_data_by_correct_incorrect_and_prediction(configuration, model, x_to_explain, y_true_to_explain)
+    if config['class_balance_explanations']:
+        x_to_explain, y_true_to_explain, order_format, ordered_indexes = order_data_by_correct_incorrect_and_prediction(config, model, x_to_explain, y_true_to_explain)
 
-    #Decides if we are going to show the matplotlib visualization in a new window (the default one that matplotlib/pyplot spawns)
-    if not configuration['halt_and_show_matplotlib']:
-        plt.ioff()
-        matplotlib.use('Agg')
-
-    #Select which of the XAI methods we are going to use based on their presence in the configuration file
+    #Select which of the XAI methods we are going to use based on their presence in the config file
     # methods_to_use = {}
     # for m, v in methods_implemented.items():
-    #     if m.lower() in [x.lower() for x in configuration['explanation_methods']['methods'].keys()]:
+    #     if m.lower() in [x.lower() for x in config['explanation_methods']['methods'].keys()]:
     #         methods_to_use[m] = v
 
-    methods_to_use = {m:v for m, v in methods_implemented.items() if m.lower() in [x.lower() for x in configuration['explanation_methods']['methods'].keys()]}
+    methods_to_use = {m:v for m, v in methods_implemented.items() if m.lower() in [x.lower() for x in config['explanation_methods']['methods'].keys()]}
 
     #Get average confidence
-    get_confidence_intervals_for_preds(configuration, model, test_x)
+    get_confidence_intervals_for_preds(config, model, test_x)
 
     restarting_index = 0
     n_methods_to_use = len(methods_to_use)
-    n_instances_to_explain = configuration['n_instances_to_explain']
-    n_rand_seed_to_try = configuration['n_rand_seed_to_try']
-    n_trials_per_rand_seed = configuration['n_trials_per_rand_seed']
+    n_instances_to_explain = config['n_instances_to_explain']
+    n_rand_seed_to_try = config['n_rand_seed_to_try']
+    n_trials_per_rand_seed = config['n_trials_per_rand_seed']
     print(f"Number of Methods: {n_methods_to_use}\n"
           f"Number of instances to explain: {n_instances_to_explain}\n"
           f"Number of Random Seeds to try: {n_rand_seed_to_try}\n"
@@ -269,7 +256,7 @@ def main():
           f"--------------------------------------\n"
           f"Total Number of Explanations generated: {n_methods_to_use*n_instances_to_explain*n_rand_seed_to_try*n_trials_per_rand_seed}")
 
-    experiment_out_path = configuration['save_model_path'] + configuration['model_name']
+    experiment_out_path = config['save_model_path'] + config['model_name']
 
     #Loop that iterates over the experiments
     for index_to_explain in range(restarting_index, n_instances_to_explain):
@@ -281,7 +268,7 @@ def main():
                 for expl_method_name, expl_information in methods_to_use.items():
                     print(f"{expl_method_name} Explanation Method Starting for iteration {index_to_explain}")
                     try:
-                        explanation_config["model"].model.to(configuration["device"])
+                        explanation_config["model"].model.to(config["device"])
                         explanation_function = expl_information["function"]
 
                         #Create the explanation output path
@@ -297,12 +284,12 @@ def main():
                         time_seconds_taken = end_time-start_time
                         print(f"Time Taken for {expl_method_name} is {time_seconds_taken}")
 
-                        update_explanation_outputs(configuration, expl_information, generated_explanation, explanation_output_folder, time_seconds_taken,
+                        update_explanation_outputs(config, expl_information, generated_explanation, explanation_output_folder, time_seconds_taken,
                                rand_seed, sample_to_explain, ordered_indexes, index_to_explain, methods_implemented, experiment_out_path)
 
                         plt.close('all')
                     except Exception as e:
-                        if configuration['throw_errors']:
+                        if config['reporting']['throw_errors']:
                             raise e
                         else:
                             print(f"EXCEPTION - Exception in {expl_method_name}\n")
