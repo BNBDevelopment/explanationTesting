@@ -1,10 +1,11 @@
 import copy
+import threading
 
 import pandas as pd
 import torch
 from TSInterpret.InterpretabilityModels.Saliency.TSR import TSR
 from TSInterpret.InterpretabilityModels.counterfactual.NativeGuideCF import NativeGuideCF
-from anchor import anchor_tabular
+from anchor import anchor_tabular, anchor_image, anchor_text
 
 from windowshap.windowshap import StationaryWindowSHAP
 
@@ -13,7 +14,7 @@ from windowshap.windowshap import StationaryWindowSHAP
 
 from TSInterpret.InterpretabilityModels.counterfactual.COMTECF import COMTECF
 
-from analysis import plot_original_overlap_counterfactual, plot_original_line_with_vals
+from ex_analysis import plot_original_overlap_counterfactual, plot_original_line_with_vals
 import numpy as np
 import shap
 
@@ -79,6 +80,7 @@ def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
     background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
     cur_device = explanation_config["experiment_config"]["device"]
     cf_feats_to_switch = explanation_config[method_name]["max_n_feats"]
+    tau_confidence = explanation_config[method_name]['tau_confidence']
 
     unwrapped_model = model.model
     unwrapped_model.eval()
@@ -91,7 +93,8 @@ def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
     # x1 = model(inputx)
     # x2 = model.model(inputx)
 
-    exp = explainer_method.explain(sample_to_explain['x'], orig_class=actual_model_label, target=1-actual_model_label, max_n_feats=cf_feats_to_switch)
+    exp = explainer_method.explain(sample_to_explain['x'], orig_class=actual_model_label, target=1-actual_model_label,
+                                   max_n_feats=cf_feats_to_switch, tau_confidence=tau_confidence)
 
     plot_original_overlap_counterfactual(sample_to_explain['x'], exp, feature_names, explanation_output_folder)
     return exp
@@ -184,14 +187,14 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
     )
     # exp = explainer.explain_instance(sample_to_explain['x'].flatten(), model.predict, threshold=0.9)#, desired_label=1-pred_label)#, tau=0.1, stop_on_first=True)
     exp = explainer.explain_instance(sample_to_explain['x'].flatten().astype(np.float32), model.predict, threshold=0.95,
-                                     tau=tau_setting, stop_on_first=True, batch_size=50, delta=delta_setting)
+                                     tau=tau_setting, stop_on_first=True, batch_size=10, delta=delta_setting)
 
     print(exp)
     print('Anchor: %s' % (' AND '.join(exp.names())))
     print('Precision: %.2f' % exp.precision())
     print('Coverage: %.2f' % exp.coverage())
-
-    return exp.exp_map
+    exp_str = (' AND '.join(exp.names()))
+    return [exp, exp_str]
 
 
 def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder):
@@ -242,11 +245,11 @@ def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
     window_length = explanation_config["window_length"]
     cur_device = explanation_config["experiment_config"]["device"]
 
-    from LASTS_explainer.lasts import Lasts
-    from LASTS_explainer.neighborhood_generators import NeighborhoodGenerator
-    from LASTS_explainer.variational_autoencoder import load_model
-    from LASTS_explainer.lasts_utils import choose_z
-    from LASTS_explainer.sbgdt import Sbgdt
+    # from LASTS_explainer.lasts import Lasts
+    # from LASTS_explainer.neighborhood_generators import NeighborhoodGenerator
+    # from LASTS_explainer.variational_autoencoder import load_model
+    # from LASTS_explainer.lasts_utils import choose_z
+    # from LASTS_explainer.sbgdt import Sbgdt
 
     blackbox = model
     class encoder_wrapper():
@@ -343,3 +346,69 @@ def do_LORE(explanation_config, sample_to_explain, explanation_output_folder):
     #
     # plot_original_line_with_vals(sample_to_explain, sv.transpose(), feature_names, explanation_output_folder)
     # return sv
+
+
+def do_AnchorsAlt(explanation_config, sample_to_explain, explanation_output_folder):
+    method_name = "anchorsalt"
+    model = explanation_config["model"]
+    feature_names = explanation_config["feature_names"]
+    background_data = explanation_config["background_data"]
+    # background_data['x'] = background_data['x'][:explanation_config[method_name]['num_background_used']]
+    # background_data['y'] = background_data['y'][:explanation_config[method_name]['num_background_used']]
+    config = explanation_config["experiment_config"]
+    tau_setting = explanation_config[method_name]["tau"]
+    delta_setting = explanation_config[method_name]["delta"]
+    #tau = 0.1, stop_on_first = True, batch_size = 50, delta = 0.05
+
+    one_locs = np.argwhere(background_data['y'] == 1)[:,0]
+    zero_locs = np.argwhere(background_data['y'] == 0)[:,0]
+    background_data_xs = np.concatenate((one_locs[:50], zero_locs[:50]))
+
+
+    flat_background = background_data['x'][background_data_xs].reshape([-1] + [np.prod(background_data['x'].shape[1:])])
+    feat_names = []
+    cat_dict = {}
+    for i in range(flat_background.shape[1]):
+        flat_loc = i%sample_to_explain['x'].shape[-1]
+        which_stack = i//sample_to_explain['x'].shape[-1]
+        name = feature_names[flat_loc]
+
+        flat_feat_name = name + f"_{which_stack}"
+        feat_names.append(flat_feat_name)
+        GLASGOW_COMASCALE_MAPPING = {
+            'Glascow coma scale eye opening': {'Spontaneously': 4, 'To Pressure': 2, 'To Sound': 3, 'No Response': 1},
+            'Glascow coma scale motor response': {'Obeys Commands': 6, 'Localizing': 5, 'Normal Flexion': 4,
+                                                  'Abnormal Flexion': 3, 'Extension': 2, 'No Response': 1},
+            'Glascow coma scale verbal response': {'Oriented': 5, 'Confused': 4, 'Words': 3, 'Sounds': 2,
+                                                   'No Response': 1}}
+        if name in config['categorical_features']:
+            if name in GLASGOW_COMASCALE_MAPPING.keys():
+                cat_dict[i] = {v:k for k,v in GLASGOW_COMASCALE_MAPPING[name].items()} #instead should be a dict of values
+
+
+
+    def override_fn(full_sample):
+        for single_feature_ts in full_sample:
+            single_feat_explainer = anchor_tabular.AnchorTabularExplainer(
+                ["Passed", "Survived"],
+                feat_names,
+                flat_background.astype(np.float32),
+                cat_dict
+            )
+
+        exp = explainer.explain_instance(sample_to_explain['x'].flatten().astype(np.float32), model.predict, threshold=0.95,
+                                     tau=tau_setting, stop_on_first=True, batch_size=5, delta=delta_setting)
+
+    for i in range(5):
+        thread = threading.Thread(
+            target=override_fn,
+            args=(f'computer_{i}',),
+        )
+        thread.start()
+
+    print(exp)
+    print('Anchor: %s' % (' AND '.join(exp.names())))
+    print('Precision: %.2f' % exp.precision())
+    print('Coverage: %.2f' % exp.coverage())
+
+    return exp.exp_map

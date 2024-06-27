@@ -10,8 +10,9 @@ from matplotlib import pyplot as plt
 from yaml import CLoader
 
 import ex_dataset
-from analysis import run_analysis
-from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask, do_LORE
+from ex_analysis import run_analysis
+from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask, do_LORE, \
+    do_AnchorsAlt
 from ex_models import V1Classifier, BasicLSTM, select_model, AutoEncoder
 from ex_train import train
 import traceback
@@ -88,7 +89,7 @@ def init_autoencoder(configuration, data):
 
 
 def order_data_by_correct_incorrect_and_prediction(configuration, model, x_toExplain, y_true):
-    y_predicted = ModelWrapper(model).predict(x_toExplain)
+    y_predicted = ModelWrapper(model, skip_autobatch=configuration['skip_autobatch']).predict(x_toExplain)
     y_true = y_true.flatten()
 
     n_instances_to_explain = configuration['n_instances_to_explain']
@@ -115,7 +116,7 @@ def order_data_by_correct_incorrect_and_prediction(configuration, model, x_toExp
                 matching_data_subset_x.append(x_toExplain[list_case_idxs[idx_combo]])
                 matching_data_subset_y.append(y_true[list_case_idxs[idx_combo]])
                 ordered_indexes.append(list_case_idxs[idx_combo].item())
-    except:
+    except Exception as ex:
         raise ("FATAL - Not enough samples to keep data balanced!")
     ordered_x_to_explain = np.stack(matching_data_subset_x).squeeze()
     ordered_y_true = np.reshape(np.array(matching_data_subset_y), (-1, 1))
@@ -130,7 +131,7 @@ def build_explanation_config(configuration, model, feature_names, x_toExplain, x
     explanation_config = {}
     explanation_config["experiment_config"] = configuration
     explanation_config["background_data"] = {"x": x_background, "y": y_background}
-    explanation_config["model"] = ModelWrapper(model)
+    explanation_config["model"] = ModelWrapper(model, skip_autobatch=configuration["skip_autobatch"])
     explanation_config["model_type"] = "lstm"
     explanation_config["feature_names"] = feature_names
     explanation_config["window_length"] = 1
@@ -186,6 +187,7 @@ def main():
         "CoMTE": {"function": do_COMTE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         "NUNCF": {"function": do_NUNCF, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         "Anchors": {"function": do_Anchors, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        "AnchorsAlt": {"function": do_AnchorsAlt, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         # Rule-based Methods
         "Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         # Natural Language Methods
@@ -196,7 +198,8 @@ def main():
     explanation_config = build_explanation_config(configuration, model, feature_names, x_to_explain, x_background, y_background)
 
     # Reorders the data so that we see explanations for every prediction-label case (i.e. Index 1 = "Model predicts 1 but True Label is 0", Index 2 = "Model predicts 1 but True Label is 1", etc...)
-    x_to_explain, y_true_to_explain, order_format, ordered_indexes = order_data_by_correct_incorrect_and_prediction(configuration, model, x_to_explain, y_true_to_explain)
+    if configuration['class_balance_explanations']:
+        x_to_explain, y_true_to_explain, order_format, ordered_indexes = order_data_by_correct_incorrect_and_prediction(configuration, model, x_to_explain, y_true_to_explain)
 
     #Decides if we are going to show the matplotlib visualization in a new window (the default one that matplotlib/pyplot spawns)
     if not configuration['halt_and_show_matplotlib']:
@@ -209,6 +212,31 @@ def main():
         if m.lower() in [x.lower() for x in configuration['explanation_methods']['methods'].keys()]:
             methods_to_use[m] = v
 
+
+    #Get average confidence
+    get_avg_confidence = True
+    if get_avg_confidence:
+        from operator import add, truediv
+        pos_logits = []
+        neg_logits = []
+        p_count = 0
+        n_count = 0
+        for x in test_x:
+            logits = model(torch.from_numpy(x).to(configuration['device'], torch.float32).unsqueeze(0)).tolist()[0]
+            if logits[0] > logits[1]:
+                neg_logits.append(logits)
+                n_count += 1
+            else:
+                pos_logits.append(logits)
+                p_count += 1
+        # avg_neg_logits = list(map(truediv, neg_logits, [n_count,n_count]))
+        # avg_pos_logits = list(map(truediv, pos_logits, [p_count,p_count]))
+        # print(f"Average negative logits: {avg_neg_logits}")
+        # print(f"Average positive logits: {avg_pos_logits}")
+        pos_ls = [x[0] for x in neg_logits]
+        pos_arr = np.array(pos_ls)
+        print(f"Median: {np.median(pos_arr)}")
+        print(f"25, 50, 75 Percentiles: {np.percentile(pos_arr, [25, 50, 75])} ")
 
     restarting_index = 0
     n_methods_to_use = len(methods_to_use)
@@ -251,7 +279,10 @@ def main():
                         expl_information["result_store"]["time_taken"].append(time_seconds_taken)
                         expl_information["result_store"]["random_seed"].append(rand_seed)
                         expl_information["result_store"]["samples_explained"].append(sample_to_explain)
-                        expl_information["result_store"]["item_index"].append(ordered_indexes[index_to_explain])
+                        if configuration['class_balance_explanations']:
+                            expl_information["result_store"]["item_index"].append(ordered_indexes[index_to_explain])
+                        else:
+                            expl_information["result_store"]["item_index"].append(index_to_explain)
                         pickel_results(methods_implemented, f"{experiment_out_path}/all_explanations.pkl")
 
                         plt.close('all')
