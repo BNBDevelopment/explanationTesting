@@ -316,19 +316,12 @@ def cf_histogram(exp_names, float_tolerance=0.0):
         exp_results = all_explanations['CoMTE']['result_store']
         comte_exps = exp_results['explanations']
         comte_orig = exp_results['samples_explained']
-        comte_idx = exp_results['item_index']
 
         exp_feat_n = exp_name.split("_feat")[1][0]
 
         for i, orig in enumerate(comte_orig):
             orig_x = orig['x']
             exp_x = comte_exps[i][0]
-            idx_x = comte_idx[i]
-
-            # if idx_x not in data.keys():
-            #     data[idx_x] = (orig_x, exp_x)
-            # else:
-            #     print(f"Duplicate index: {idx_x}")
 
             if exp_feat_n in data.keys():
                 data[exp_feat_n].append((orig_x, exp_x))

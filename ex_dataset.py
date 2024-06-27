@@ -111,7 +111,7 @@ def data_postproc(train_x, categorical_idx, inorder_col_list, config):
     if np.isnan(train_x).any():
         raise ValueError("Failure, found at least one NaN in the training data after mean std normalization")
 
-    if config['input_concat_w_mask']:
+    if config['training']['data']['input_concat_w_mask']:
         return np.concatenate((train_x, orig_or_imputed_mask), axis=-1)
     else:
         return train_x
@@ -151,6 +151,10 @@ def merge_time_into_windows(train_x, window_size, ts_size, time_index):
 def load_mimic_binary_classification(config, base_path, filename, datatype, cutoff_seq_len=30, num_features=18, categorical_feats=[], excludes=[]):
     print("STATUS - Creating MIMIC-III data")
 
+    preproc_method = config['training']['data']['data_preproc']
+    n_hour_per_merge_timepoint = config['training']['data']['merge_time_size']
+    n_hours_to_use = config['training']['data']['n_hours_to_use']
+
     train_file = pd.read_csv(base_path / filename)
     train_stay_ref = train_file["stay"]
     time_index = 0
@@ -164,14 +168,14 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
 
     clean_data = []
     matching_ys = []
-    print(f"Using '{config['data_preproc']}' as preprocessing method.")
+    print(f"Using '{preproc_method}' as preprocessing method.")
 
     for i, stay_ref in enumerate(train_stay_ref):
         train_data = pd.read_csv(base_path / (read_folder+"/"+stay_ref))
 
         matching_ys.append(train_file["y_true"].iloc[i])
 
-        if config['data_preproc'] == 'PaperDescription':
+        if preproc_method == 'PaperDescription':
             passes_filter = filter_data_check(train_data, cutoff_seq_len)
             if passes_filter:
                 clean_row = data_preproc(train_data, categorical_feats, cutoff_seq_len)
@@ -179,7 +183,7 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
                 used_seq_lens.append(clean_row.shape[1])
             else:
                 notused_seq_lens.append(train_data.shape[0])
-        elif config['data_preproc'] == 'mimic3benchmark':
+        elif preproc_method == 'mimic3benchmark':
             temp = train_data.fillna('')
             temp['Glascow coma scale total'] = temp['Glascow coma scale total'].astype(str).apply(
                 lambda x: x.split('.')[0])
@@ -194,9 +198,10 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
             clean_data.append(train_data)
             used_seq_lens.append(train_data.shape[1])
 
-    if config['data_preproc'] == 'mimic3benchmark':
+    if preproc_method == 'mimic3benchmark':
         from mimic3models.preprocessing import Normalizer, Discretizer
-        discretizer = Discretizer(timestep=float(config['merge_time_size']),
+
+        discretizer = Discretizer(timestep=float(),
                                   store_masks=True,
                                   impute_strategy='previous',
                                   start_time='zero')
@@ -207,16 +212,16 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
         normalizer_state = 'ihm_ts1.0.input_str_previous.start_time_zero.normalizer'
         normalizer.load_params(normalizer_state)
 
-        ts = [config['hours_to_eval'] for i in range(len(clean_data))]
+        ts = [n_hours_to_use for i in range(len(clean_data))]
         clean_data = [discretizer.transform(X.astype(str), end=t)[0] for (X, t) in zip(clean_data, ts)]
         if normalizer is not None:
             clean_data = [normalizer.transform(X) for X in clean_data]
         train_x = np.stack(clean_data, axis=0)
         train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
     else:
-        config['ts_size'] = config['hours_to_eval'] // config['merge_time_size']
+        config['ts_size'] = n_hours_to_use // n_hour_per_merge_timepoint
         print(f"STATUS - Data Processing - Merging time into windows")
-        clean_data = merge_time_into_windows(clean_data, config['merge_time_size'], config['ts_size'], time_index)
+        clean_data = merge_time_into_windows(clean_data, n_hour_per_merge_timepoint, config['ts_size'], time_index)
 
         train_x = np.stack(clean_data, axis=0)
         train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
@@ -240,7 +245,7 @@ def load_file_data(config, data_type="train"):
     mimic_data_path = config['mimic_data_path']
     categoricals = config['categorical_features']
     exclude_list = config['excludes']
-    max_seq_len = config['max_seq_len']
+    max_seq_len = config['training']['data']['max_seq_len']
     num_features = config['num_features']
     data_filename = config['data_suffix']
 

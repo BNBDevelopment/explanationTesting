@@ -4,7 +4,7 @@ import torch
 
 
 class ModelWrapper():
-    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256, verbose=False, skip_autobatch=False):
+    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256, verbose=False, skip_autobatch=False, modeltype='pt'):
         super().__init__()
         self.model = model
         self.column_names = ["x1"]
@@ -16,8 +16,9 @@ class ModelWrapper():
         self.batch_size = batch_size
         self.verbose = verbose
         self.skip_autobatch = skip_autobatch
+        self.model_type = modeltype
 
-    def predict(self, x):
+    def predict_label(self, x):
         if len(x.shape) == 2:
             x = x.reshape(-1, 48, 17)
         res = self.predict_proba(x)
@@ -47,13 +48,13 @@ class ModelWrapper():
                 x_arr = torch.split(x_input, x_input.size(0)//(x_input.size(0)//self.batch_size), dim=0)
                 reses = []
                 for x_batch in x_arr:
-                    res = self.model(x_batch)
+                    res = self(x_batch)
                     reses.append(res.detach().cpu().numpy())
                 res = np.concatenate(reses, axis=0)
             else:
-                res = self.model(x_input)
+                res = self(x_input)
                 res = res.detach().cpu().numpy()
         else:
-            res = self.model(x_input)
+            res = self(x_input)
             res = res.detach().cpu().numpy()
         return res

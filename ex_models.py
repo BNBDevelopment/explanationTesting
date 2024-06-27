@@ -57,22 +57,21 @@ class AutoEncoder(torch.nn.Module):
 
 def select_model(config):
     num_classes = config['num_classes']
-    num_layers = config['model_n_layers']
-    dropout = config['model_dropout']
-    bias = config['model_bias']
-    bidirectional = config['model_bidirectional']
-    hidden_size = config['model_hdim']
+    num_layers = config['training']['model']['model_n_layers']
+    dropout = config['training']['model']['model_dropout']
+    bias = config['training']['model']['model_bias']
+    bidirectional = config['training']['model']['model_bidirectional']
+    hidden_size = config['training']['model']['model_hdim']
 
-    if config['data_preproc'] == 'mimic3benchmark':
+    if config['training']['data']['data_preproc'] == 'mimic3benchmark':
         num_features = 76
     else:
-        input_concat_w_mask = config['input_concat_w_mask']
-        if input_concat_w_mask:
+        if config['training']['data']['input_concat_w_mask']:
             num_features = config['num_features'] * 2
         else:
             num_features = config['num_features']
 
-    model_class = config["model_class"]
+    model_class = config['training']['model']["model_class"]
     if model_class == "basic":
         return basic_model(n_feats=num_features, n_classes=num_classes)
     elif model_class == "benchmark_lstm":
@@ -84,11 +83,6 @@ def select_model(config):
 class V1Classifier(torch.nn.Module):
     def __init__(self, n_feats, n_classes):
         super().__init__()
-        # self.l1 = nn.Linear(n_feats, n_feats*2)
-        # self.l2 = nn.Linear(n_feats*2, n_feats * 3)
-        # self.fc = nn.Linear(n_feats * 3, n_classes)
-        # self.relu = nn.ReLU(inplace=False)
-        # self.flattener = nn.Flatten()
         self.fc1 = nn.Linear(n_feats, 128)
         self.fc2 = nn.Linear(128, 512)
         self.fc3 = nn.Linear(512, n_classes)
@@ -96,16 +90,6 @@ class V1Classifier(torch.nn.Module):
         self.n_classes = n_classes
 
     def forward(self, in_x):
-        # x = self.flattener(in_x)
-        # x = self.l1(x)
-        # x = self.relu(x)
-        # x = self.l2(x)
-        # x = self.relu(x)
-        # x = self.fc(x)
-        # x = self.relu(x)
-        #max_idx = torch.argmax(x)
-        #return torch.sigmoid(x)
-
         x = torch.flatten(in_x, 1)  # flatten all dimensions except batch
         x = nn.functional.relu(self.fc1(x))
         x = nn.functional.relu(self.fc2(x))
@@ -134,6 +118,7 @@ class BasicLSTM(torch.nn.Module):
         self.drop(final_h)
         final_h = self.fc(final_h)
         return torch.sigmoid(final_h)
+
 
 class ChannelWiseLSTM(torch.nn.Module):
     def __init__(self, n_feats, n_classes, hidden_size=32, num_layers=1, bias=True, dropout=0.1, bidirectional=True):

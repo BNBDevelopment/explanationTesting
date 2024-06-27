@@ -47,9 +47,9 @@ def model_forward(model, config_dict, loss_fn, x, y, is_autoencoder=False):
 
 def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None, manual_loss_fn=None, is_autoencoder=False):
     print("STATUS - Begining model training")
-    n_epochs = config_dict['n_epochs']
-    lr = config_dict['lr']
-    batch_sz = config_dict['batch_size']
+    n_epochs = config_dict['training']['train']['n_epochs']
+    lr = config_dict['training']['train']['lr']
+    batch_sz = config_dict['training']['train']['batch_size']
     optimizer = config_dict['optimizer']
     current_device = config_dict['device']
     if manual_loss_fn is None:

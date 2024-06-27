@@ -11,8 +11,7 @@ from yaml import CLoader
 
 import ex_dataset
 from ex_analysis import run_analysis
-from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask, do_LORE, \
-    do_AnchorsAlt
+from ex_explanation_methods import do_WindowSHAP, do_GradCAM, do_COMTE, do_NUNCF, do_Anchors, do_Dynamask#, do_LORE, do_AnchorsAlt
 from ex_models import V1Classifier, BasicLSTM, select_model, AutoEncoder
 from ex_train import train
 import traceback
@@ -51,7 +50,6 @@ def initialize_configuration():
     finally:
         stream.close()
 
-    config['max_seq_len'] = config['cutoff_seq_len']
     config['num_classes'] = 2
     if not config['excludes'] is None:
         config['num_features'] = 18 - len(config['excludes'])
@@ -59,9 +57,9 @@ def initialize_configuration():
         config['num_features'] = 18
     config['n_classes'] = 2
 
-    if config['loss_type'] == "NLL":
+    if config['training']['train']['loss_type'] == "NLL":
         config['loss_fn'] = nn.NLLLoss()
-    elif config['loss_type'] == "BCE":
+    elif config['training']['train']['loss_type'] == "BCE":
         config['loss_fn'] = nn.BCELoss()
     else:
         raise NotImplementedError(f"Loss type {config['loss_type']} is not implemented!")
@@ -78,6 +76,7 @@ def initialize_model(configuration, data):
         model = train(model, configuration, data['train_x'], data['train_y'], data['val_x'], data['val_y'])
     return model
 
+
 def init_autoencoder(configuration, data):
     if configuration['load_autoencoder']:
         model = torch.load(configuration['autoencoder_path'])
@@ -88,8 +87,44 @@ def init_autoencoder(configuration, data):
     return model
 
 
+def update_explanation_outputs(configuration, expl_information, generated_explanation, explanation_output_folder, time_seconds_taken,
+                               rand_seed, sample_to_explain, ordered_indexes, index_to_explain, methods_implemented, experiment_out_path):
+    pickel_results(generated_explanation, f"{explanation_output_folder}explanation.pkl")
+    expl_information["result_store"]["explanations"].append(generated_explanation)
+    expl_information["result_store"]["time_taken"].append(time_seconds_taken)
+    expl_information["result_store"]["random_seed"].append(rand_seed)
+    expl_information["result_store"]["samples_explained"].append(sample_to_explain)
+    if configuration['class_balance_explanations']:
+        expl_information["result_store"]["item_index"].append(ordered_indexes[index_to_explain])
+    else:
+        expl_information["result_store"]["item_index"].append(index_to_explain)
+    pickel_results(methods_implemented, f"{experiment_out_path}/all_explanations.pkl")
+
+
+def get_confidence_intervals_for_preds(configuration, model, test_x):
+    get_avg_confidence = True
+    if get_avg_confidence:
+        from operator import add, truediv
+        pos_logits = []
+        neg_logits = []
+        p_count = 0
+        n_count = 0
+        for x in test_x:
+            logits = model(torch.from_numpy(x).to(configuration['device'], torch.float32).unsqueeze(0)).tolist()[0]
+            if logits[0] > logits[1]:
+                neg_logits.append(logits)
+                n_count += 1
+            else:
+                pos_logits.append(logits)
+                p_count += 1
+        pos_ls = [x[0] for x in neg_logits]
+        pos_arr = np.array(pos_ls)
+        print(f"Median: {np.median(pos_arr)}")
+        print(f"25, 50, 75 Percentiles: {np.percentile(pos_arr, [25, 50, 75])} ")
+
+
 def order_data_by_correct_incorrect_and_prediction(configuration, model, x_toExplain, y_true):
-    y_predicted = ModelWrapper(model, skip_autobatch=configuration['skip_autobatch']).predict(x_toExplain)
+    y_predicted = ModelWrapper(model, skip_autobatch=configuration['skip_autobatch']).predict_label(x_toExplain)
     y_true = y_true.flatten()
 
     n_instances_to_explain = configuration['n_instances_to_explain']
@@ -125,6 +160,22 @@ def order_data_by_correct_incorrect_and_prediction(configuration, model, x_toExp
     print("Reordered Data is formatted: \n"
           f"\t{', '.join(order_format)}")
     return ordered_x_to_explain, ordered_y_true, order_format, ordered_indexes
+
+
+def get_explanation_data(configuration, test_x, test_y):
+    num_background_samples = configuration['explanation_methods']['num_background_samples']
+    if num_background_samples > 0 and num_background_samples < 1.0:
+        num_background_samples = int(num_background_samples * test_x.shape[0] // 1)
+    indexes_for_background = random.sample(range(0, test_x.shape[0]), num_background_samples)
+    indexes_to_explain = list(set(range(0, test_x.shape[0])).difference(set(indexes_for_background)))
+
+    # Splits the data into data (instances) to explain, and data that can be used as a background. Some methods require background data against which to compare the instances that are being explained.
+    x_background = test_x[indexes_for_background]
+    y_background = test_y[indexes_for_background]
+    x_to_explain = test_x[indexes_to_explain]
+    y_true_to_explain = test_y[indexes_to_explain]
+
+    return x_background, y_background, x_to_explain, y_true_to_explain
 
 
 def build_explanation_config(configuration, model, feature_names, x_toExplain, x_background, y_background):
@@ -165,33 +216,22 @@ def main():
     model = initialize_model(configuration, data)
     #autoencoder = init_autoencoder(configuration, data)
 
-
-    num_background_samples = configuration['explanation_methods']['num_background_samples']
-    if num_background_samples > 0 and num_background_samples < 1.0:
-        num_background_samples = int(num_background_samples * test_x.shape[0] // 1)
-    indexes_for_background = random.sample(range(0, test_x.shape[0]), num_background_samples)
-    indexes_to_explain = list(set(range(0, test_x.shape[0])).difference(set(indexes_for_background)))
-
-    # Splits the data into data (instances) to explain, and data that can be used as a background. Some methods require background data against which to compare the instances that are being explained.
-    x_background = test_x[indexes_for_background]
-    y_background = test_y[indexes_for_background]
-    x_to_explain = test_x[indexes_to_explain]
-    y_true_to_explain = test_y[indexes_to_explain]
+    x_background, y_background, x_to_explain, y_true_to_explain = get_explanation_data(configuration, test_x, test_y)
 
     #List of the methods currently implemented for use
     methods_implemented = {
         # Attribution Methods
         "WindowSHAP": {"function": do_WindowSHAP, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        "GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"GradCAM": {"function": do_GradCAM, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         # Counterfactual Methods
         "CoMTE": {"function": do_COMTE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        "NUNCF": {"function": do_NUNCF, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"NUNCF": {"function": do_NUNCF, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         "Anchors": {"function": do_Anchors, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
-        "AnchorsAlt": {"function": do_AnchorsAlt, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"AnchorsAlt": {"function": do_AnchorsAlt, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         # Rule-based Methods
-        "Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"Dynamask": {"function": do_Dynamask, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
         # Natural Language Methods
-        "LORE": {"function": do_LORE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        #"LORE": {"function": do_LORE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
     }
 
     #Builds the explanation configuration, which is the config common to all of the explanation methods
@@ -207,36 +247,15 @@ def main():
         matplotlib.use('Agg')
 
     #Select which of the XAI methods we are going to use based on their presence in the configuration file
-    methods_to_use = {}
-    for m, v in methods_implemented.items():
-        if m.lower() in [x.lower() for x in configuration['explanation_methods']['methods'].keys()]:
-            methods_to_use[m] = v
+    # methods_to_use = {}
+    # for m, v in methods_implemented.items():
+    #     if m.lower() in [x.lower() for x in configuration['explanation_methods']['methods'].keys()]:
+    #         methods_to_use[m] = v
 
+    methods_to_use = {m:v for m, v in methods_implemented.items() if m.lower() in [x.lower() for x in configuration['explanation_methods']['methods'].keys()]}
 
     #Get average confidence
-    get_avg_confidence = True
-    if get_avg_confidence:
-        from operator import add, truediv
-        pos_logits = []
-        neg_logits = []
-        p_count = 0
-        n_count = 0
-        for x in test_x:
-            logits = model(torch.from_numpy(x).to(configuration['device'], torch.float32).unsqueeze(0)).tolist()[0]
-            if logits[0] > logits[1]:
-                neg_logits.append(logits)
-                n_count += 1
-            else:
-                pos_logits.append(logits)
-                p_count += 1
-        # avg_neg_logits = list(map(truediv, neg_logits, [n_count,n_count]))
-        # avg_pos_logits = list(map(truediv, pos_logits, [p_count,p_count]))
-        # print(f"Average negative logits: {avg_neg_logits}")
-        # print(f"Average positive logits: {avg_pos_logits}")
-        pos_ls = [x[0] for x in neg_logits]
-        pos_arr = np.array(pos_ls)
-        print(f"Median: {np.median(pos_arr)}")
-        print(f"25, 50, 75 Percentiles: {np.percentile(pos_arr, [25, 50, 75])} ")
+    get_confidence_intervals_for_preds(configuration, model, test_x)
 
     restarting_index = 0
     n_methods_to_use = len(methods_to_use)
@@ -252,6 +271,7 @@ def main():
 
     experiment_out_path = configuration['save_model_path'] + configuration['model_name']
 
+    #Loop that iterates over the experiments
     for index_to_explain in range(restarting_index, n_instances_to_explain):
         for rand_seed in range(n_rand_seed_to_try):
             set_random_seed(rand_seed)
@@ -264,26 +284,21 @@ def main():
                         explanation_config["model"].model.to(configuration["device"])
                         explanation_function = expl_information["function"]
 
+                        #Create the explanation output path
                         explanation_output_folder = experiment_out_path + f"/{expl_method_name}/instance-{index_to_explain}_random_seed-{rand_seed}_trial-{trial_num}/"
                         path = pathlib.Path(explanation_output_folder)
                         path.mkdir(parents=True, exist_ok=True)
 
+                        #Generate the explanation and start the timer
                         start_time = time.time()
                         generated_explanation = explanation_function(explanation_config, sample_to_explain, explanation_output_folder)
                         end_time = time.time()
+
                         time_seconds_taken = end_time-start_time
                         print(f"Time Taken for {expl_method_name} is {time_seconds_taken}")
 
-                        pickel_results(generated_explanation, f"{explanation_output_folder}explanation.pkl")
-                        expl_information["result_store"]["explanations"].append(generated_explanation)
-                        expl_information["result_store"]["time_taken"].append(time_seconds_taken)
-                        expl_information["result_store"]["random_seed"].append(rand_seed)
-                        expl_information["result_store"]["samples_explained"].append(sample_to_explain)
-                        if configuration['class_balance_explanations']:
-                            expl_information["result_store"]["item_index"].append(ordered_indexes[index_to_explain])
-                        else:
-                            expl_information["result_store"]["item_index"].append(index_to_explain)
-                        pickel_results(methods_implemented, f"{experiment_out_path}/all_explanations.pkl")
+                        update_explanation_outputs(configuration, expl_information, generated_explanation, explanation_output_folder, time_seconds_taken,
+                               rand_seed, sample_to_explain, ordered_indexes, index_to_explain, methods_implemented, experiment_out_path)
 
                         plt.close('all')
                     except Exception as e:
