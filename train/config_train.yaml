@@ -1,0 +1,63 @@
+categorical_features:
+  - "Glascow coma scale eye opening"
+  - "Glascow coma scale motor response"
+  - "Glascow coma scale verbal response"
+  - "Glascow coma scale total"
+excludes:
+  - "Hours"
+
+device: cuda
+
+save_model_path: "D:/research/craven/baselines/explanationTesting/output"
+mimic_data_path: "D:/research/craven/baselines/explanationTesting/data/in-hospital-mortality"
+datadir: "D:/research/craven/baselines/explanationTesting/data/my_mimic"
+data_suffix: "_allData.pkl"
+
+training:
+  model:
+    model_n_layers: 1
+    model_dropout: 0.3
+    model_bias: True
+    model_bidirectional: True
+    model_hdim: 32
+    model_class: benchmark_lstm
+  train:
+    n_epochs: 5
+    lr: 0.0002
+    batch_size: 32
+    loss_type: "BCE"
+  data:
+    max_seq_len: 76
+    merge_time_size: 1.0
+    n_hours_to_use: 48.0
+    input_concat_w_mask: False
+    data_preproc: None
+
+experiment:
+  load_model: False
+  load_data: True
+  load_model_path: "_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
+reporting:
+  throw_errors: False
+
+#model_type: lstm
+
+experiment_name: "exp_cleanup"
+class_balance_explanations: True
+skip_autobatch: True
+n_instances_to_explain: 100
+n_rand_seed_to_try: 1
+n_trials_per_rand_seed: 1
+explanation_methods:
+  num_background_samples: .25
+  test_idxs:
+  methods:
+    comte:
+      num_background_used: 100
+      max_n_feats: 3
+      tau_confidence: 0.99
+    anchors:
+      num_background_used: 100
+    windowshap:
+      num_background_used: 100
+      window_len: 1
