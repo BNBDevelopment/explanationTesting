@@ -1,6 +1,7 @@
 import argparse
 import pickle
 
+import keras
 import yaml
 from yaml import CLoader
 import random
@@ -41,11 +42,38 @@ def initialize_configuration():
         config['num_features'] = 18
     config['n_classes'] = 2
 
-    if config['training']['train']['loss_type'] == "NLL":
-        config['loss_fn'] = torch.nn.NLLLoss()
-    elif config['training']['train']['loss_type'] == "BCE":
-        config['loss_fn'] = torch.nn.BCELoss()
-    else:
-        raise NotImplementedError(f"Loss type {config['loss_type']} is not implemented!")
+    if 'train' in config['training'].keys():
+        if config['training']['train']['loss_type'] == "NLL":
+            config['loss_fn'] = torch.nn.NLLLoss()
+        elif config['training']['train']['loss_type'] == "BCE":
+            config['loss_fn'] = torch.nn.BCELoss()
+        else:
+            raise NotImplementedError(f"Loss type {config['loss_type']} is not implemented!")
 
     return config
+
+
+
+
+def save_model(model, optimizer, filename, mtype='pt'):
+    if mtype == 'pt':
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+        }, filename)
+    elif mtype == 'tf':
+        assert filename[-3:] == '.h5'
+        model.save(filename, save_format='h5')
+    else:
+        raise NotImplementedError(f"Cannot save model type {mtype}")
+
+
+def load_model(model, optimizer, filename, mtype='pt'):
+    if mtype == 'pt':
+        checkpoint = torch.load(filename)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    elif mtype == 'tf':
+        loaded_model = keras.models.load_model(filename)
+    else:
+        raise NotImplementedError(f"Cannot load model type {mtype}")

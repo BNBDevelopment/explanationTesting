@@ -8,10 +8,10 @@ excludes:
 
 device: cuda
 
-save_model_path: "D:/research/craven/baselines/explanationTesting/output"
-mimic_data_path: "D:/research/craven/baselines/explanationTesting/data/in-hospital-mortality"
-datadir: "D:/research/craven/baselines/explanationTesting/data/my_mimic"
-data_suffix: "_allData.pkl"
+save_model_path: D:/research/craven/baselines/explanationTesting/_saved_models
+mimic_data_path: D:/research/craven/baselines/explanationTesting/data/in-hospital-mortality
+datadir: D:/research/craven/baselines/explanationTesting/data/my_mimic
+data_suffix: _allData.pkl
 
 training:
   model:
@@ -22,10 +22,10 @@ training:
     model_hdim: 32
     model_class: benchmark_lstm
   train:
-    n_epochs: 5
-    lr: 0.0002
+    n_epochs: 100
+    lr: 0.0001
     batch_size: 32
-    loss_type: "BCE"
+    loss_type: BCE
   data:
     max_seq_len: 76
     merge_time_size: 1.0
@@ -34,30 +34,14 @@ training:
     data_preproc: None
 
 experiment:
+  name: exp_cleanup
   load_model: False
-  load_data: True
-  load_model_path: "_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
+  load_data: False
+  load_model_path: D:/research/craven/baselines/explanationTesting/_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt
 reporting:
   throw_errors: False
 
 #model_type: lstm
 
-experiment_name: "exp_cleanup"
-class_balance_explanations: True
-skip_autobatch: True
-n_instances_to_explain: 100
-n_rand_seed_to_try: 1
-n_trials_per_rand_seed: 1
-explanation_methods:
-  num_background_samples: .25
-  test_idxs:
-  methods:
-    comte:
-      num_background_used: 100
-      max_n_feats: 3
-      tau_confidence: 0.99
-    anchors:
-      num_background_used: 100
-    windowshap:
-      num_background_used: 100
-      window_len: 1
+
+

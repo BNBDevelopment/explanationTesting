@@ -24,7 +24,7 @@ training:
 experiment:
   load_model: False
   load_data: True
-  load_model_path: "_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
+  load_model_path: "D:/research/craven/baselines/explanationTesting/_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
 reporting:
   throw_errors: False
 

@@ -60,7 +60,7 @@ def train(model, config_dict, pd_x, pd_y, val_x=None, val_y=None, manual_loss_fn
         loss_fn = manual_loss_fn
 
     save_model_path = Path(config_dict['save_model_path'])
-    experiment_name = config_dict['experiment_name']
+    experiment_name = config_dict['experiment']['name']
 
     best_model = model
 
