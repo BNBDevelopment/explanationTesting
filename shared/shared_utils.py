@@ -26,6 +26,8 @@ def initialize_configuration():
         prog='Explanation Testing Framework',
         description='Run a selection of explanation methods')
     parser.add_argument('configuration')
+    parser.add_argument('-m', '--model', default=None)
+    parser.add_argument('-d', '--data', default=None)
     args = parser.parse_args()
     config_path = args.configuration
 
@@ -50,6 +52,12 @@ def initialize_configuration():
         else:
             raise NotImplementedError(f"Loss type {config['loss_type']} is not implemented!")
 
+    if args.model:
+        config['experiment']['load_model'] = True
+        config['experiment']['load_model_path'] = args.model
+    if args.data:
+        config['experiment']['load_data'] = True
+        config['datadir'] = args.model
     return config
 
 

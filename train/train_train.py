@@ -29,18 +29,11 @@ def format_pds(pd_x, pd_y, batch_sz, current_device):
 
 
 def model_forward(model, config_dict, loss_fn, x, y, is_autoencoder=False):
-    # x = torch.tensor(pd_x.iloc[data_idx, :].to_numpy()).to(current_device)
-    # y = torch.tensor(pd_y.iloc[data_idx, :].to_numpy()).to(current_device)
-    # x.requires_grad = True
-    # y.requires_grad = True
     x = x.to(torch.float32)
 
     output = model(x).to(torch.float32)
 
     y = y.squeeze().to(torch.long)
-    # loss = loss_fn(output.squeeze(), y.squeeze())
-    if not is_autoencoder:
-        y = torch.nn.functional.one_hot(y, num_classes=config_dict['num_classes'])
     y = y.to(torch.float32)
     loss = loss_fn(output, y)
 

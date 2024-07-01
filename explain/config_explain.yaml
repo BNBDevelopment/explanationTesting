@@ -8,7 +8,7 @@ excludes:
 
 device: cuda
 
-save_model_path: "D:/research/craven/baselines/explanationTesting/output"
+save_explanation_path: "D:/research/craven/baselines/explanationTesting/output"
 mimic_data_path: "D:/research/craven/baselines/explanationTesting/data/in-hospital-mortality"
 datadir: "D:/research/craven/baselines/explanationTesting/data/my_mimic"
 data_suffix: "_allData.pkl"
@@ -24,13 +24,14 @@ training:
 experiment:
   load_model: False
   load_data: True
-  load_model_path: "D:/research/craven/baselines/explanationTesting/_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
+  #load_model_path: "D:/research/craven/baselines/explanationTesting/_saved_models/PresentationTesting_epoch18_aucroc0.83710.pt"
+  load_model_path: "D:/research/craven/baselines/explanationTesting/_saved_models/exp_cleanup_epoch19_aucroc0.82881.pt"
+  name: "exp_cleanup"
 reporting:
   throw_errors: False
 
 #model_type: lstm
 
-experiment_name: "exp_cleanup"
 class_balance_explanations: True
 skip_autobatch: True
 n_instances_to_explain: 100
@@ -49,3 +50,4 @@ explanation_methods:
     windowshap:
       num_background_used: 100
       window_len: 1
+      tau: 0.25

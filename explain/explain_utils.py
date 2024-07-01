@@ -79,7 +79,7 @@ def build_explanation_config(config, model, feature_names, x_toExplain, x_backgr
     explanation_config = {}
     explanation_config["experiment_config"] = config
     explanation_config["background_data"] = {"x": x_background, "y": y_background}
-    explanation_config["model"] = ModelWrapper(model, skip_autobatch=config['skip_autobatch'])
+    explanation_config["model"] = ModelWrapper(model, skip_autobatch=config['skip_autobatch'], device=config['device'])
     explanation_config["model_type"] = "lstm"
     explanation_config["feature_names"] = feature_names
     explanation_config["window_length"] = 1

@@ -4,7 +4,7 @@ import torch
 
 
 class ModelWrapper():
-    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256, verbose=False, skip_autobatch=False, modeltype='pt'):
+    def __init__(self, model, n_classes=None, model_flag=None, batch_size=256, verbose=False, skip_autobatch=False, modeltype='pt',device='cpu'):
         super().__init__()
         self.model = model
         self.column_names = ["x1"]
@@ -17,6 +17,7 @@ class ModelWrapper():
         self.verbose = verbose
         self.skip_autobatch = skip_autobatch
         self.model_type = modeltype
+        self.device = device
 
     def predict_label(self, x):
         if len(x.shape) == 2:
@@ -24,6 +25,11 @@ class ModelWrapper():
         res = self.predict_proba(x)
         pred = np.argmax(res, axis=-1)
         return pred
+
+    def predict(self, x):
+        torch_x = torch.from_numpy(x).to(next(self.model.parameters()).device, torch.float32)
+        pred = self(torch_x)
+        return pred.cpu().detach().numpy()
 
     def __call__(self, x):
         #temp = self.predict(args[0])
@@ -37,7 +43,7 @@ class ModelWrapper():
             x_input = x.to_numpy()
             x_input = torch.from_numpy(x_input).to(self.model.fc.bias.device).to(torch.float32)
         elif issubclass(x.__class__, np.ndarray):
-            x_input = torch.from_numpy(x).to(self.model.fc.bias.device).to(torch.float32)
+            x_input = torch.from_numpy(x).to(self.device).to(torch.float32)
         else:
             raise NotImplementedError(f"Input class type {x.__class__} not covered for wrapped model")
 
