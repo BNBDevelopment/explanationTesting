@@ -159,7 +159,7 @@ def main():
                         path.mkdir(parents=True, exist_ok=True)
 
                         #Generate the explanation and start the timer
-                        with torch.no_grad:
+                        with torch.no_grad():
                             start_time = time.time()
                             generated_explanation = explanation_function(explanation_config,
                                                                          sample_to_explain,

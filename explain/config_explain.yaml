@@ -32,7 +32,7 @@ reporting:
 
 #model_type: lstm
 
-class_balance_explanations: True
+class_balance_explanations: False
 skip_autobatch: True
 n_instances_to_explain: 100
 n_rand_seed_to_try: 1
