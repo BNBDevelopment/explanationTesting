@@ -85,8 +85,9 @@ def build_explanation_config(config, model, feature_names, x_toExplain, x_backgr
     explanation_config["window_length"] = 1
     explanation_config["eval_approach"] = "GRAD"
     explanation_config["what_is_second_dim"] = 'time'
-    explanation_config["n_timesteps"] = x_toExplain.shape[1]
-    explanation_config["n_features"] = x_toExplain.shape[2]
+    if len(x_toExplain.shape) > 2:
+        explanation_config["n_timesteps"] = x_toExplain.shape[-2]
+    explanation_config["n_features"] = x_toExplain.shape[-1]
 
     for method_dict, m_vals in config['explanation_methods']['methods'].items():
         explanation_config[method_dict] = m_vals

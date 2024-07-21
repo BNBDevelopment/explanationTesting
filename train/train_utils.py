@@ -27,7 +27,7 @@ class ModelWrapper():
         return pred
 
     def predict(self, x):
-        torch_x = torch.from_numpy(x).to(next(self.model.parameters()).device, torch.float32)
+        torch_x = torch.from_numpy(x).to(self.device, torch.float32)
         pred = self(torch_x)
         return pred.cpu().detach().numpy()
 
@@ -41,9 +41,9 @@ class ModelWrapper():
             x_input = x.to(self.model.fc.bias.device)
         elif issubclass(x.__class__, pd.DataFrame):
             x_input = x.to_numpy()
-            x_input = torch.from_numpy(x_input).to(self.model.fc.bias.device).to(torch.float32)
+            x_input = torch.from_numpy(x_input).to(self.device, torch.float32)
         elif issubclass(x.__class__, np.ndarray):
-            x_input = torch.from_numpy(x).to(self.device).to(torch.float32)
+            x_input = torch.from_numpy(x).to(self.device, torch.float32)
         else:
             raise NotImplementedError(f"Input class type {x.__class__} not covered for wrapped model")
 

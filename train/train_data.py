@@ -218,6 +218,9 @@ def load_mimic_binary_classification(config, base_path, filename, datatype, cuto
             clean_data = [normalizer.transform(X) for X in clean_data]
         train_x = np.stack(clean_data, axis=0)
         train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1)
+    elif preproc_method == 'custom':
+        train_x = np.stack(clean_data, axis=0) #pickle.dump(clean_data, open("trainx.csv", "wb"))
+        train_y = np.expand_dims(np.stack((matching_ys), axis=0), axis=1) #np.savetxt("trainy.csv", np.expand_dims(np.stack((matching_ys), axis=0), axis=1), delimiter=",")
     else:
         config['ts_size'] = n_hours_to_use // n_hour_per_merge_timepoint
         print(f"STATUS - Data Processing - Merging time into windows")

@@ -72,12 +72,12 @@ def do_COMTE(explanation_config, sample_to_explain, explanation_output_folder):
     cf_feats_to_switch = explanation_config[method_name]["max_n_feats"]
     tau_confidence = explanation_config[method_name]['tau_confidence']
 
-    unwrapped_model = model.model
-    unwrapped_model.eval()
+    # unwrapped_model = model.model
+    # unwrapped_model.eval()
 
     comte_formatted_data = tuple([background_data['x'], background_data['y'].squeeze()])
-    explainer_method = COMTECF(unwrapped_model.to('cpu'), comte_formatted_data, backend="PYT", mode=what_is_second_dim, method='opt', number_distractors=2, max_attempts=1000, max_iter=1000,silent=False)
-    actual_model_label = unwrapped_model(torch.from_numpy(sample_to_explain['x']).to(torch.float32)).argmax(-1).item()
+    explainer_method = COMTECF(model, comte_formatted_data, backend="PYT", mode=what_is_second_dim, method='opt', number_distractors=2, max_attempts=1000, max_iter=1000,silent=False)
+    actual_model_label = model(torch.from_numpy(sample_to_explain['x']).to(torch.float32)).argmax(-1).item()
 
     exp = explainer_method.explain(sample_to_explain['x'], orig_class=actual_model_label, target=1-actual_model_label,
                                    max_n_feats=cf_feats_to_switch, tau_confidence=tau_confidence)
@@ -178,7 +178,15 @@ def do_Anchors(explanation_config, sample_to_explain, explanation_output_folder)
     print('Precision: %.2f' % exp.precision())
     print('Coverage: %.2f' % exp.coverage())
     exp_str = (' AND '.join(exp.names()))
-    return [exp, exp_str]
+    tempexp = {
+        'feature':exp.exp_map['feature'],
+        'mean':exp.exp_map['mean'],
+        'coverage':exp.exp_map['coverage'],
+        'precision':exp.exp_map['precision'],
+        'num_preds':exp.exp_map['num_preds'],
+        'names':exp.exp_map['names'],
+    }
+    return [tempexp, exp_str]
 
 
 def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder):
@@ -219,3 +227,53 @@ def do_Dynamask(explanation_config, sample_to_explain, explanation_output_folder
     # return submask_tensor_np
 
 
+
+def generate_perturbation(instance, n_perturbs, unpurturbed_loc_and_val, data_to_use):
+    n_timesteps = instance['x'].shape[1]
+    n_features = instance['x'].shape[2]
+    n_other_instances = data_to_use['x'].shape[0]
+
+    block_of_perturbs = np.zeros_like(instance['x']).repeat(n_perturbs, axis=0)
+
+    #which other istances will we take the value from
+    for timestep in range(n_timesteps):
+        for feature in range(n_features):
+            locs_to_copy = np.random.randint(low=0, high=n_other_instances, size=n_perturbs)
+            block_of_perturbs[:, timestep, feature] = data_to_use[locs_to_copy]
+
+
+    #put the values we want to hold constant back in
+
+    for unpert_loc in unpurturbed_loc_and_val:
+        time_range, feature_range = unpert_loc[0], unpert_loc[1]
+        block_of_perturbs[:, time_range[0]:time_range[1], feature_range[0]:feature_range[1]] = instance[:, time_range[0]:time_range[1], feature_range[0]:feature_range[1]]
+    return block_of_perturbs
+
+def do_CustomMethod(explanation_config, sample_to_explain, explanation_output_folder):
+    #We want to compute E[Y | X]
+    model = explanation_config["model"]
+    background_data = explanation_config["background_data"]
+
+    time_range = (-12, -1)
+    feature_range = (0, 1)
+
+    locs_component_being_examined = [time_range, feature_range] # Used to define value x_i for setting X=x_i
+
+    #This next line finds the possible replacement values for x_i
+    #TODO: Replace this with a weighted-nearest-eighbor strategy
+    xi_vals = np.unique(background_data['x'][:, time_range[0]:time_range[1], feature_range[0]:feature_range[1]], axis=0)
+
+    ys_given_xi = np.zeros(shape=[len(xi_vals)])
+
+    for i, possible_xi_val in enumerate(xi_vals):
+        unpurturbed_loc_and_val = (locs_component_being_examined, possible_xi_val)
+        ps = generate_perturbation(instance=sample_to_explain, n_perturbs=1000, unpurturbed_loc_and_val=unpurturbed_loc_and_val, data_to_use=background_data)
+
+        #Now we get E[Y | X=x_i]
+        # compute output on the perturbed instances
+        perturbed_preds = model(ps)
+        expected_y_given_xi = np.mean(perturbed_preds)
+        ys_given_xi[i] = expected_y_given_xi
+
+    #Now return E[Y | X] by averaging over all E[Y | X=x_i]
+    overall_importance = ys_given_xi

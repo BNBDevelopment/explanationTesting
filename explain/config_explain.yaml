@@ -45,9 +45,13 @@ explanation_methods:
       num_background_used: 100
       max_n_feats: 3
       tau_confidence: 0.99
-    anchors:
-      num_background_used: 100
-    windowshap:
-      num_background_used: 100
-      window_len: 1
-      tau: 0.25
+#    anchors:
+#      num_background_used: 300
+#      tau: 0.25
+#      delta: 0.25
+#    windowshap:
+#      num_background_used: 100
+#      window_len: 1
+#    custom:
+#      num_background_used: 100
+

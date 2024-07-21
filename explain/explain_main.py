@@ -1,4 +1,5 @@
 import pathlib
+import pickle
 import time
 
 import numpy
@@ -10,7 +11,7 @@ import traceback
 import numpy as np
 import tensorflow as tf
 
-from explain.explain_explain import do_WindowSHAP, do_COMTE, do_Anchors
+from explain.explain_explain import do_WindowSHAP, do_COMTE, do_Anchors, do_CustomMethod
 from explain.explain_utils import build_explanation_config, split_data_for_explanation, \
     order_data_by_correct_incorrect_and_prediction, update_explanation_outputs
 from shared.shared_utils import set_random_seed, initialize_configuration, pickel_results
@@ -35,6 +36,8 @@ def get_implemented_methods():
 
         ############################# Natural Language Methods
         #"LORE": {"function": do_LORE, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index":[], "samples_explained":[]}},
+        "Custom": {"function": do_CustomMethod, "result_store": {"explanations": [], "time_taken": [], "random_seed": [], "item_index": [], "samples_explained": []}},
+
     }
     return impl_dict
 
@@ -79,9 +82,21 @@ def main():
     set_random_seed(12345)
 
     print("STATUS - Starting Initial Data Load")
-    train_x, train_y, feature_names = load_file_data(config, data_type="train")
-    val_x, val_y, _ = load_file_data(config, data_type="val")
-    test_x, test_y, _ = load_file_data(config, data_type="test")
+    if config['passthrough_processing']:
+        f = open(config['datadir'], "rb")
+        temp = pickle.load(f)
+        f.close()
+
+        feature_names = temp['pred_vars']
+        y_cols = 'outcome_ward24hr'
+
+        test_x = temp['combined_dat'][feature_names].to_numpy()
+        test_y = temp['combined_dat'][y_cols].to_numpy()
+
+    else:
+        train_x, train_y, feature_names = load_file_data(config, data_type="train")
+        val_x, val_y, _ = load_file_data(config, data_type="val")
+        test_x, test_y, _ = load_file_data(config, data_type="test")
 
     #Load the model
     if config['experiment']['load_model_path'][-3:] == '.h5':
@@ -122,6 +137,7 @@ def main():
           f"Total Number of Explanations generated: {n_methods_to_use*n_instances_to_explain*n_rand_seed_to_try*n_trials_per_rand_seed}")
 
     experiment_out_path = pathlib.Path(config['save_explanation_path']) / config['experiment']['name']
+    pathlib.Path(experiment_out_path).mkdir(parents=True, exist_ok=True)
 
     #Loop that iterates over the experiments
     for index_to_explain in range(restarting_index, n_instances_to_explain):
@@ -138,31 +154,26 @@ def main():
                         explanation_function = expl_information["function"]
 
                         #Create the explanation output path
-                        explanation_output_folder = experiment_out_path / f"/{expl_method_name}/instance-{index_to_explain}_random_seed-{rand_seed}_trial-{trial_num}/"
+                        explanation_output_folder = experiment_out_path / f"{expl_method_name}/instance-{index_to_explain}_random_seed-{rand_seed}_trial-{trial_num}/"
                         path = pathlib.Path(explanation_output_folder)
                         path.mkdir(parents=True, exist_ok=True)
 
                         #Generate the explanation and start the timer
-                        start_time = time.time()
-                        generated_explanation = explanation_function(explanation_config,
-                                                                     sample_to_explain,
-                                                                     explanation_output_folder)
-                        end_time = time.time()
+                        with torch.no_grad:
+                            start_time = time.time()
+                            generated_explanation = explanation_function(explanation_config,
+                                                                         sample_to_explain,
+                                                                         explanation_output_folder)
+                            end_time = time.time()
 
-                        time_seconds_taken = end_time-start_time
-                        print(f"Time Taken for {expl_method_name} is {time_seconds_taken}")
+                            time_seconds_taken = end_time-start_time
+                            print(f"Time Taken for {expl_method_name} is {time_seconds_taken}")
 
-                        update_explanation_outputs(config,
-                                                   expl_information,
-                                                   generated_explanation,
-                                                   explanation_output_folder,
-                                                   time_seconds_taken,
-                                                   rand_seed,
-                                                   sample_to_explain,
-                                                   ordered_indexes,
-                                                   index_to_explain,
-                                                   available_exp_methods,
-                                                   experiment_out_path)
+                            update_explanation_outputs(config, expl_information, generated_explanation,
+                                                       explanation_output_folder, time_seconds_taken,
+                                                       rand_seed, sample_to_explain, ordered_indexes,
+                                                       index_to_explain, available_exp_methods,
+                                                       experiment_out_path)
 
                         plt.close('all')
                     except Exception as e:

@@ -57,7 +57,10 @@ def initialize_configuration():
         config['experiment']['load_model_path'] = args.model
     if args.data:
         config['experiment']['load_data'] = True
-        config['datadir'] = args.model
+        config['datadir'] = args.data
+    if args.model and args.data:
+        config['passthrough_processing'] = True
+
     return config
 
 
